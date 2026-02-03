@@ -935,6 +935,199 @@ Data Source: {fundamentals.source.value}
 # Agent now reasons with actual data, not hallucinated numbers
 ```
 
+#### Phase 3C: Web Research Skills
+**Dependencies:** Phase 3A
+
+**Available Search Providers:**
+
+| Provider | Capabilities | Use Case |
+|----------|--------------|----------|
+| **Brave Search** | Web search, news, no tracking | Primary search for general queries |
+| **SerpAPI** | Google Search API, news, images, shopping | Comprehensive search with structured results |
+
+**Provider Priority:**
+1. **Brave Search** (primary) - Fast, privacy-focused, good for news
+2. **SerpAPI** (fallback) - Google results when Brave insufficient
+
+**Deliverables:**
+- [ ] `skills/web_search.py` - Unified search interface
+- [ ] Brave Search integration (web, news)
+- [ ] SerpAPI integration (Google search, news, knowledge graph)
+- [ ] Search result parsing and summarization
+- [ ] Rate limiting and caching
+- [ ] Source credibility scoring (optional)
+
+**Web Search Skill Interface:**
+```python
+# skills/web_search.py
+from typing import Optional, List
+from pydantic import BaseModel
+from enum import Enum
+
+class SearchProvider(str, Enum):
+    BRAVE = "brave"
+    SERPAPI = "serpapi"
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    source: str
+    published_date: Optional[str]
+    provider: SearchProvider
+
+class NewsResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    source: str
+    published_date: str
+    thumbnail: Optional[str]
+    provider: SearchProvider
+
+class WebSearchResponse(BaseModel):
+    query: str
+    results: List[SearchResult]
+    news: List[NewsResult]
+    provider: SearchProvider
+
+# Provider configuration
+SEARCH_PROVIDER_CONFIG = {
+    "brave": {
+        "api_key_env": "BRAVE_SEARCH_API_KEY",
+        "base_url": "https://api.search.brave.com/res/v1",
+        "rate_limit_rpm": 60,
+        "priority": 1,
+    },
+    "serpapi": {
+        "api_key_env": "SERPAPI_API_KEY",
+        "priority": 2,
+    },
+}
+
+async def web_search(
+    query: str,
+    num_results: int = 10,
+    provider: Optional[SearchProvider] = None
+) -> WebSearchResponse:
+    """Search the web. Auto-selects best available provider."""
+    ...
+
+async def news_search(
+    query: str,
+    num_results: int = 10,
+    freshness: str = "week",  # day, week, month
+    provider: Optional[SearchProvider] = None
+) -> List[NewsResult]:
+    """Search for recent news articles."""
+    ...
+
+async def company_news(ticker: str, days: int = 7) -> List[NewsResult]:
+    """Get recent news for a specific company/ticker."""
+    ...
+
+async def sector_news(sector: str, days: int = 7) -> List[NewsResult]:
+    """Get recent news for a sector (e.g., 'rare earth minerals')."""
+    ...
+```
+
+**Brave Search Client:**
+```python
+# skills/brave_search.py
+import httpx
+
+class BraveSearchClient:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://api.search.brave.com/res/v1"
+
+    async def search(
+        self,
+        query: str,
+        count: int = 10,
+        freshness: Optional[str] = None,  # pd (24h), pw (week), pm (month)
+        search_type: str = "web"  # web, news
+    ) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/{search_type}/search",
+                headers={"X-Subscription-Token": self.api_key},
+                params={"q": query, "count": count, "freshness": freshness}
+            )
+            return response.json()
+
+    async def news(self, query: str, count: int = 10) -> List[NewsResult]:
+        """Fetch news results."""
+        data = await self.search(query, count, search_type="news")
+        return [NewsResult(...) for r in data.get("results", [])]
+```
+
+**SerpAPI Client:**
+```python
+# skills/serpapi_client.py
+from serpapi import GoogleSearch
+
+class SerpAPIClient:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    async def search(self, query: str, num: int = 10) -> dict:
+        """Google search via SerpAPI."""
+        search = GoogleSearch({
+            "q": query,
+            "num": num,
+            "api_key": self.api_key
+        })
+        return search.get_dict()
+
+    async def news(self, query: str, num: int = 10) -> List[NewsResult]:
+        """Google News search."""
+        search = GoogleSearch({
+            "q": query,
+            "tbm": "nws",  # News search
+            "num": num,
+            "api_key": self.api_key
+        })
+        data = search.get_dict()
+        return [NewsResult(...) for r in data.get("news_results", [])]
+
+    async def knowledge_graph(self, query: str) -> Optional[dict]:
+        """Get knowledge graph data if available."""
+        data = await self.search(query)
+        return data.get("knowledge_graph")
+```
+
+**Use Cases for Agents:**
+
+| Agent | Web Search Use Case |
+|-------|---------------------|
+| **01 Systems** | Industry trends, regulatory changes, supply chain news |
+| **06 Screener** | Discover companies in sector, validate ticker existence |
+| **07 Fundamental** | Recent earnings news, analyst coverage, management changes |
+| **08 Technical** | Catalyst events, sentiment shifts |
+| **02 Inversion** | Negative news, lawsuits, regulatory risks |
+| **05 Epistemic** | Verify claims, check assumption against recent news |
+
+**Example: Screener with Web Search:**
+```python
+# Before 06_screener runs, gather sector context
+sector_news = await news_search("rare earth minerals mining", freshness="month")
+web_context = await web_search("rare earth mining companies US listed")
+
+agent_context = f"""
+## Recent Sector News (Last 30 Days)
+
+{format_news_results(sector_news)}
+
+## Web Research Results
+
+{format_search_results(web_context)}
+
+Use this information to identify relevant tickers and assess sector dynamics.
+Flag any news that materially affects the investment thesis.
+"""
+```
+
 ---
 
 ### Phase 4: Production Readiness (Future)
@@ -1152,15 +1345,22 @@ charters/
 
 skills/
 ├── __init__.py
-├── extractors.py      # Output parsing
-├── scoring.py         # Confidence scoring
-├── memo_builder.py    # Report assembly
-├── conflicts.py       # Conflict detection
-├── market_data.py     # Unified market data interface (Phase 3)
-├── polygon_client.py  # Polygon.io API client (Phase 3)
-├── schwab_client.py   # Schwab API client (Phase 3)
-├── yfinance_client.py # yfinance fallback client (Phase 3)
-└── financials.py      # Financial data parsing
+├── extractors.py        # Output parsing
+├── scoring.py           # Confidence scoring
+├── memo_builder.py      # Report assembly
+├── conflicts.py         # Conflict detection
+├── financials.py        # Financial data parsing
+│
+├── # Market Data (Phase 3A)
+├── market_data.py       # Unified market data interface
+├── polygon_client.py    # Polygon.io API client
+├── schwab_client.py     # Schwab API client
+├── yfinance_client.py   # yfinance fallback client
+│
+├── # Web Search (Phase 3C)
+├── web_search.py        # Unified search interface
+├── brave_search.py      # Brave Search API client
+└── serpapi_client.py    # SerpAPI (Google) client
 
 tests/
 ├── test_state_schema.py
@@ -1373,7 +1573,7 @@ OPENAI_API_KEY=sk-...                  # Fallback LLM provider
 DUCKDB_PATH=data/ledger.duckdb         # Default path for ledger
 ```
 
-### Required (Phase 3 - Market Data)
+### Required (Phase 3 - Market Data & Search)
 ```bash
 # Market Data Providers
 POLYGON_API_KEY=...                    # Polygon.io (primary market data)
@@ -1381,6 +1581,10 @@ SCHWAB_API_KEY=...                     # Schwab API key
 SCHWAB_CLIENT_ID=...                   # Schwab OAuth client ID
 SCHWAB_CLIENT_SECRET=...               # Schwab OAuth client secret
 SCHWAB_REFRESH_TOKEN=...               # Schwab OAuth refresh token
+
+# Web Search Providers
+BRAVE_SEARCH_API_KEY=...               # Brave Search (primary search)
+SERPAPI_API_KEY=...                    # SerpAPI / Google Search (fallback)
 ```
 
 ### Optional (Per-Agent Overrides)
@@ -1401,6 +1605,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4 | 2026-02-03 | Added Phase 3C Web Research Skills: Brave Search (primary), SerpAPI (fallback) integrations. Web/news search for all agents. Use cases per agent type. Updated file structure and environment variables. |
 | 1.3 | 2026-02-03 | Enhanced Phase 3 Market Data: Added Polygon.io (primary), Schwab API (secondary), yfinance (fallback) integrations. Detailed provider config, data models, and client implementations. Added environment variables section. |
 | 1.2 | 2026-02-03 | Added Equity Research Agents (06-08): Sector Screener, Fundamental Analyst, Technical Analyst. New equity research workflow with per-ticker deep-dive. Phase 2B for equity agents, Phase 3 for market data integration. Updated architecture diagram, model tiering, and file structure. |
 | 1.1 | 2026-02-03 | Added LLM Provider & Model Strategy (Section 2.6): Claude-first approach, per-agent model tiering, extended thinking configuration, environment overrides, cost optimization path |
@@ -1408,6 +1613,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.3*
+*Document Version: 1.4*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
