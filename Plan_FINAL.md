@@ -943,15 +943,18 @@ Data Source: {fundamentals.source.value}
 | Provider | Capabilities | Use Case |
 |----------|--------------|----------|
 | **Brave Search** | Web search, news, no tracking | Primary search for general queries |
-| **SerpAPI** | Google Search API, news, images, shopping | Comprehensive search with structured results |
+| **Serper** | Google Search API, fast, cost-effective | Fast Google results, good rate limits |
+| **SerpAPI** | Google Search API, news, images, knowledge graph | Comprehensive search with structured results |
 
 **Provider Priority:**
 1. **Brave Search** (primary) - Fast, privacy-focused, good for news
-2. **SerpAPI** (fallback) - Google results when Brave insufficient
+2. **Serper** (secondary) - Fast Google results, cost-effective
+3. **SerpAPI** (tertiary) - Comprehensive Google results, knowledge graph
 
 **Deliverables:**
 - [ ] `skills/web_search.py` - Unified search interface
 - [ ] Brave Search integration (web, news)
+- [ ] Serper integration (Google search, fast)
 - [ ] SerpAPI integration (Google search, news, knowledge graph)
 - [ ] Search result parsing and summarization
 - [ ] Rate limiting and caching
@@ -966,6 +969,7 @@ from enum import Enum
 
 class SearchProvider(str, Enum):
     BRAVE = "brave"
+    SERPER = "serper"
     SERPAPI = "serpapi"
 
 class SearchResult(BaseModel):
@@ -999,9 +1003,15 @@ SEARCH_PROVIDER_CONFIG = {
         "rate_limit_rpm": 60,
         "priority": 1,
     },
+    "serper": {
+        "api_key_env": "SERPER_API_KEY",
+        "base_url": "https://google.serper.dev",
+        "rate_limit_rpm": 100,
+        "priority": 2,
+    },
     "serpapi": {
         "api_key_env": "SERPAPI_API_KEY",
-        "priority": 2,
+        "priority": 3,
     },
 }
 
@@ -1060,6 +1070,50 @@ class BraveSearchClient:
         """Fetch news results."""
         data = await self.search(query, count, search_type="news")
         return [NewsResult(...) for r in data.get("results", [])]
+```
+
+**Serper Client:**
+```python
+# skills/serper_client.py
+import httpx
+
+class SerperClient:
+    """Serper.dev - Fast, cost-effective Google Search API."""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.base_url = "https://google.serper.dev"
+
+    async def search(self, query: str, num: int = 10) -> dict:
+        """Google search via Serper."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/search",
+                headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"},
+                json={"q": query, "num": num}
+            )
+            return response.json()
+
+    async def news(self, query: str, num: int = 10) -> List[NewsResult]:
+        """Google News search via Serper."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/news",
+                headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"},
+                json={"q": query, "num": num}
+            )
+            data = response.json()
+            return [NewsResult(...) for r in data.get("news", [])]
+
+    async def images(self, query: str, num: int = 10) -> List[dict]:
+        """Google Images search via Serper."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/images",
+                headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"},
+                json={"q": query, "num": num}
+            )
+            return response.json().get("images", [])
 ```
 
 **SerpAPI Client:**
@@ -1360,6 +1414,7 @@ skills/
 ├── # Web Search (Phase 3C)
 ├── web_search.py        # Unified search interface
 ├── brave_search.py      # Brave Search API client
+├── serper_client.py     # Serper.dev (Google) client
 └── serpapi_client.py    # SerpAPI (Google) client
 
 tests/
@@ -1583,8 +1638,9 @@ SCHWAB_CLIENT_SECRET=...               # Schwab OAuth client secret
 SCHWAB_REFRESH_TOKEN=...               # Schwab OAuth refresh token
 
 # Web Search Providers
-BRAVE_SEARCH_API_KEY=...               # Brave Search (primary search)
-SERPAPI_API_KEY=...                    # SerpAPI / Google Search (fallback)
+BRAVE_SEARCH_API_KEY=...               # Brave Search (primary)
+SERPER_API_KEY=...                     # Serper.dev (secondary, fast Google)
+SERPAPI_API_KEY=...                    # SerpAPI (tertiary, comprehensive)
 ```
 
 ### Optional (Per-Agent Overrides)
@@ -1605,6 +1661,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.5 | 2026-02-03 | Added Serper.dev as secondary search provider (fast, cost-effective Google Search). Updated provider priority: Brave → Serper → SerpAPI. Added SerperClient implementation. |
 | 1.4 | 2026-02-03 | Added Phase 3C Web Research Skills: Brave Search (primary), SerpAPI (fallback) integrations. Web/news search for all agents. Use cases per agent type. Updated file structure and environment variables. |
 | 1.3 | 2026-02-03 | Enhanced Phase 3 Market Data: Added Polygon.io (primary), Schwab API (secondary), yfinance (fallback) integrations. Detailed provider config, data models, and client implementations. Added environment variables section. |
 | 1.2 | 2026-02-03 | Added Equity Research Agents (06-08): Sector Screener, Fundamental Analyst, Technical Analyst. New equity research workflow with per-ticker deep-dive. Phase 2B for equity agents, Phase 3 for market data integration. Updated architecture diagram, model tiering, and file structure. |
@@ -1613,6 +1670,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.4*
+*Document Version: 1.5*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
