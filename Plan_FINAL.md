@@ -700,61 +700,240 @@ python -m runner.run --task inputs/example_tasks/rare_earth_diligence.md
 #### Phase 3A: Market Data Skills
 **Dependencies:** Phase 2C
 
+**Available Data Providers:**
+
+| Provider | Tier | Capabilities | Use Case |
+|----------|------|--------------|----------|
+| **Polygon.io** | Advanced (paid) | Real-time quotes, OHLCV history, fundamentals, options, news | Primary source for all market data |
+| **Schwab API** | Brokerage | Quotes, research, account data, trading | Secondary source, trading integration |
+| **yfinance** | Free | Quotes, history, basic fundamentals | Fallback when paid sources unavailable |
+
+**Provider Priority:**
+1. **Polygon.io** (primary) - Best data quality, real-time, comprehensive
+2. **Schwab API** (secondary) - Research data, account integration
+3. **yfinance** (fallback) - Free tier, no API key required
+
 **Deliverables:**
-- [ ] `skills/market_data.py` - API wrapper for market data
-- [ ] Yahoo Finance integration (free tier)
-- [ ] Alpha Vantage integration (optional, API key)
-- [ ] Quote fetching: price, volume, market cap
-- [ ] Fundamentals fetching: P/E, EV/EBITDA, revenue, earnings
-- [ ] Historical price data for technical analysis
-- [ ] Rate limiting and caching
+- [ ] `skills/market_data.py` - Unified API wrapper with provider abstraction
+- [ ] Polygon.io integration (real-time quotes, OHLCV, fundamentals)
+- [ ] Schwab API integration (research, quotes)
+- [ ] yfinance fallback integration
+- [ ] Quote fetching: price, volume, market cap, bid/ask
+- [ ] Fundamentals fetching: P/E, EV/EBITDA, revenue, earnings, balance sheet
+- [ ] Historical price data (1min to daily bars)
+- [ ] Options chain data (via Polygon)
+- [ ] Rate limiting and caching per provider
+- [ ] Provider health checks and automatic failover
 
 **Market Data Skill Interface:**
 ```python
 # skills/market_data.py
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
+from enum import Enum
+
+class DataProvider(str, Enum):
+    POLYGON = "polygon"
+    SCHWAB = "schwab"
+    YFINANCE = "yfinance"
 
 class QuoteData(BaseModel):
     ticker: str
     price: float
+    bid: Optional[float]
+    ask: Optional[float]
     market_cap: Optional[float]
     pe_ratio: Optional[float]
     volume: int
     timestamp: str
+    source: DataProvider
 
 class FundamentalsData(BaseModel):
     ticker: str
+    # Income Statement
     revenue_ttm: Optional[float]
     net_income_ttm: Optional[float]
     eps_ttm: Optional[float]
+    gross_margin: Optional[float]
+    operating_margin: Optional[float]
+    # Valuation
     pe_ratio: Optional[float]
+    forward_pe: Optional[float]
     ev_ebitda: Optional[float]
+    price_to_book: Optional[float]
+    price_to_sales: Optional[float]
+    # Balance Sheet
+    total_debt: Optional[float]
+    total_cash: Optional[float]
     debt_to_equity: Optional[float]
     current_ratio: Optional[float]
+    # Metadata
+    source: DataProvider
+    as_of_date: str
 
-async def get_quote(ticker: str) -> QuoteData:
-    """Fetch current quote data for a ticker."""
+class OHLCVBar(BaseModel):
+    timestamp: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+
+class PriceHistory(BaseModel):
+    ticker: str
+    bars: List[OHLCVBar]
+    timeframe: str  # "1min", "5min", "1hour", "1day"
+    source: DataProvider
+
+# Provider configuration
+PROVIDER_CONFIG = {
+    "polygon": {
+        "api_key_env": "POLYGON_API_KEY",
+        "base_url": "https://api.polygon.io",
+        "rate_limit_rpm": 100,  # Advanced tier
+        "priority": 1,
+    },
+    "schwab": {
+        "api_key_env": "SCHWAB_API_KEY",
+        "client_id_env": "SCHWAB_CLIENT_ID",
+        "priority": 2,
+    },
+    "yfinance": {
+        "priority": 3,  # Fallback, no API key needed
+    },
+}
+
+async def get_quote(ticker: str, provider: Optional[DataProvider] = None) -> QuoteData:
+    """Fetch current quote data. Auto-selects best available provider."""
     ...
 
-async def get_fundamentals(ticker: str) -> FundamentalsData:
+async def get_fundamentals(ticker: str, provider: Optional[DataProvider] = None) -> FundamentalsData:
     """Fetch fundamental data for a ticker."""
     ...
 
-async def get_price_history(ticker: str, period: str = "1y") -> pd.DataFrame:
+async def get_price_history(
+    ticker: str,
+    timeframe: str = "1day",
+    period: str = "1y",
+    provider: Optional[DataProvider] = None
+) -> PriceHistory:
     """Fetch historical price data for technical analysis."""
     ...
+
+async def get_options_chain(ticker: str, expiration: Optional[str] = None) -> dict:
+    """Fetch options chain (Polygon only)."""
+    ...
+
+async def validate_ticker(ticker: str) -> bool:
+    """Check if ticker exists and is tradeable."""
+    ...
+```
+
+**Polygon.io Specific Features:**
+```python
+# skills/polygon_client.py
+from polygon import RESTClient
+
+class PolygonMarketData:
+    def __init__(self, api_key: str):
+        self.client = RESTClient(api_key)
+
+    async def get_ticker_details(self, ticker: str) -> dict:
+        """Company info, description, SIC code, etc."""
+        return self.client.get_ticker_details(ticker)
+
+    async def get_financials(self, ticker: str, limit: int = 4) -> List[dict]:
+        """Quarterly/annual financials from SEC filings."""
+        return list(self.client.vx.list_stock_financials(ticker, limit=limit))
+
+    async def get_aggregates(
+        self,
+        ticker: str,
+        multiplier: int,
+        timespan: str,  # minute, hour, day, week, month
+        from_date: str,
+        to_date: str
+    ) -> List[OHLCVBar]:
+        """Historical OHLCV bars."""
+        aggs = self.client.get_aggs(ticker, multiplier, timespan, from_date, to_date)
+        return [OHLCVBar(...) for a in aggs]
+
+    async def get_last_quote(self, ticker: str) -> QuoteData:
+        """Real-time last quote."""
+        return self.client.get_last_quote(ticker)
+
+    async def get_related_companies(self, ticker: str) -> List[str]:
+        """Find similar/related tickers for screening."""
+        return self.client.get_related_companies(ticker)
+```
+
+**Schwab API Features:**
+```python
+# skills/schwab_client.py
+class SchwabMarketData:
+    """Schwab API for quotes, research, and account integration."""
+
+    async def get_quote(self, ticker: str) -> QuoteData:
+        """Real-time quote from Schwab."""
+        ...
+
+    async def get_research(self, ticker: str) -> dict:
+        """Analyst ratings, price targets, research reports."""
+        ...
+
+    async def get_account_positions(self) -> List[dict]:
+        """Current portfolio positions (for context in analysis)."""
+        ...
 ```
 
 #### Phase 3B: Enhanced Equity Agents
 **Dependencies:** Phase 3A
 
 **Deliverables:**
-- [ ] Fundamental Analyst uses live data via skills
-- [ ] Technical Analyst uses price history for real chart analysis
-- [ ] Screener can validate tickers exist and get basic data
-- [ ] Data provenance tracking (source, timestamp)
-- [ ] Graceful fallback when data unavailable
+- [ ] Fundamental Analyst uses Polygon financials + Schwab research
+- [ ] Technical Analyst uses Polygon OHLCV for real chart analysis
+- [ ] Screener validates tickers via Polygon and fetches basic data
+- [ ] Data provenance tracking (source, timestamp, data freshness)
+- [ ] Graceful fallback: Polygon → Schwab → yfinance
+- [ ] Agent prompts include actual data, not just reasoning
+
+**Example: Fundamental Agent with Live Data:**
+```python
+# Before calling 07_fundamental agent, inject real data
+fundamentals = await get_fundamentals("MP")
+price_history = await get_price_history("MP", timeframe="1day", period="1y")
+
+agent_context = f"""
+## Live Market Data for {ticker}
+
+### Current Quote
+Price: ${fundamentals.price}
+Market Cap: ${fundamentals.market_cap:,.0f}
+
+### Valuation Metrics (as of {fundamentals.as_of_date})
+P/E Ratio: {fundamentals.pe_ratio}
+Forward P/E: {fundamentals.forward_pe}
+EV/EBITDA: {fundamentals.ev_ebitda}
+P/B: {fundamentals.price_to_book}
+
+### Financials (TTM)
+Revenue: ${fundamentals.revenue_ttm:,.0f}
+Net Income: ${fundamentals.net_income_ttm:,.0f}
+EPS: ${fundamentals.eps_ttm}
+Gross Margin: {fundamentals.gross_margin:.1%}
+Operating Margin: {fundamentals.operating_margin:.1%}
+
+### Balance Sheet
+Total Debt: ${fundamentals.total_debt:,.0f}
+Total Cash: ${fundamentals.total_cash:,.0f}
+Debt/Equity: {fundamentals.debt_to_equity}
+Current Ratio: {fundamentals.current_ratio}
+
+Data Source: {fundamentals.source.value}
+"""
+
+# Agent now reasons with actual data, not hallucinated numbers
+```
 
 ---
 
@@ -977,8 +1156,11 @@ skills/
 ├── scoring.py         # Confidence scoring
 ├── memo_builder.py    # Report assembly
 ├── conflicts.py       # Conflict detection
-├── market_data.py     # Market data API calls (Phase 2)
-└── financials.py      # Financial data parsing (Phase 2)
+├── market_data.py     # Unified market data interface (Phase 3)
+├── polygon_client.py  # Polygon.io API client (Phase 3)
+├── schwab_client.py   # Schwab API client (Phase 3)
+├── yfinance_client.py # yfinance fallback client (Phase 3)
+└── financials.py      # Financial data parsing
 
 tests/
 ├── test_state_schema.py
@@ -1177,16 +1359,55 @@ medium-high
 
 ---
 
-## 12. Changelog
+## 12. Environment Variables
+
+### Required (Phase 1)
+```bash
+# .env.example
+
+# LLM Providers (at least one required)
+ANTHROPIC_API_KEY=sk-ant-...          # Primary LLM provider
+OPENAI_API_KEY=sk-...                  # Fallback LLM provider
+
+# Database
+DUCKDB_PATH=data/ledger.duckdb         # Default path for ledger
+```
+
+### Required (Phase 3 - Market Data)
+```bash
+# Market Data Providers
+POLYGON_API_KEY=...                    # Polygon.io (primary market data)
+SCHWAB_API_KEY=...                     # Schwab API key
+SCHWAB_CLIENT_ID=...                   # Schwab OAuth client ID
+SCHWAB_CLIENT_SECRET=...               # Schwab OAuth client secret
+SCHWAB_REFRESH_TOKEN=...               # Schwab OAuth refresh token
+```
+
+### Optional (Per-Agent Overrides)
+```bash
+# Model overrides for cost optimization
+AGENT_ORCHESTRATOR_MODEL=claude-sonnet-4-20250514
+AGENT_01_SYSTEMS_MODEL=claude-haiku-3-5-20241022
+AGENT_05_EPISTEMIC_THINKING=standard
+
+# Run configuration
+MAX_COST_PER_RUN_USD=10.00
+DEFAULT_MAX_ITERATIONS=2
+```
+
+---
+
+## 13. Changelog
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3 | 2026-02-03 | Enhanced Phase 3 Market Data: Added Polygon.io (primary), Schwab API (secondary), yfinance (fallback) integrations. Detailed provider config, data models, and client implementations. Added environment variables section. |
 | 1.2 | 2026-02-03 | Added Equity Research Agents (06-08): Sector Screener, Fundamental Analyst, Technical Analyst. New equity research workflow with per-ticker deep-dive. Phase 2B for equity agents, Phase 3 for market data integration. Updated architecture diagram, model tiering, and file structure. |
 | 1.1 | 2026-02-03 | Added LLM Provider & Model Strategy (Section 2.6): Claude-first approach, per-agent model tiering, extended thinking configuration, environment overrides, cost optimization path |
 | 1.0 | 2026-02-03 | Initial final plan with improvements and recommendations |
 
 ---
 
-*Document Version: 1.2*
+*Document Version: 1.3*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
