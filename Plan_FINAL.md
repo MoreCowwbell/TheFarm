@@ -1229,7 +1229,736 @@ A report is "shippable" when:
 4. At least one visual/chart is included
 5. Executive summary is ≤ 1/2 page
 
-### 1.7 Key Design Principles
+### 1.7 Intake System (Form + Agent)
+
+The Intake System ensures users provide sufficient context for agents to perform optimally. It combines a **structured form template** with an **Intake Agent** that can interactively gather missing context. All fields are **optional** but contribute to an **Intake Quality Score** that predicts analysis depth.
+
+#### 1.7.1 Intake Form Template
+
+```markdown
+# Task Intake Form
+
+> **Instructions:** Fill in as many fields as you can. All fields are optional,
+> but more context = better analysis. The Intake Agent will review and may ask
+> follow-up questions before the pipeline runs.
+
+---
+
+## 1. CORE REQUEST
+
+### Title
+<!-- Short, descriptive title for this analysis -->
+
+
+### One-Line Ask
+<!-- What do you want to know or decide? Complete this sentence:
+     "Help me understand/decide/find..." -->
+
+
+### Objective Type
+<!-- Choose one: invest | build | explore | decide | invent -->
+
+
+### Time Horizon
+<!-- Choose one: days-weeks | months | 6-18 months | multi-year -->
+
+
+---
+
+## 2. CONTEXT & BACKGROUND
+
+### Background Context
+<!-- What led to this question? What's the situation?
+     Include any relevant history, events, or market conditions. -->
+
+
+### Domain/Industry
+<!-- What sector, industry, or domain does this relate to?
+     e.g., "rare earth minerals", "enterprise SaaS", "biotech" -->
+
+
+### Geographic Focus
+<!-- Any geographic constraints or focus areas?
+     e.g., "US-listed only", "Asia-Pacific markets", "Global" -->
+
+
+---
+
+## 3. PRIOR THINKING
+
+### Prior Hypotheses
+<!-- What do you already believe or suspect? List your current hypotheses.
+     Be honest—agents will stress-test these, not just confirm them.
+
+     Example:
+     - "MP Materials is undervalued due to US rare earth scarcity"
+     - "The market is overestimating EV adoption speed" -->
+
+
+### Information You Already Have
+<!-- What research have you already done? What sources have you consulted?
+     This avoids redundant work.
+
+     Example:
+     - "Read MP Materials 10-K, seems solid balance sheet"
+     - "Spoke with industry expert who mentioned China export risks" -->
+
+
+### Reference Materials
+<!-- Paths to any files, reports, or data you want agents to consider.
+     Leave blank if none.
+
+     Example:
+     - inputs/reference/mp_materials_10k.pdf
+     - inputs/reference/rare_earth_industry_report.pdf -->
+
+
+---
+
+## 4. CONSTRAINTS & PREFERENCES
+
+### Hard Constraints
+<!-- Non-negotiable requirements. Agents will respect these strictly.
+
+     Example:
+     - "Public companies only"
+     - "No exposure to China-domiciled companies"
+     - "Budget under $50K" -->
+
+
+### Soft Preferences
+<!-- Nice-to-haves, but can be relaxed if needed.
+
+     Example:
+     - "Prefer US-listed over ADRs"
+     - "Would like dividend-paying stocks" -->
+
+
+### Non-Goals (Explicitly Out of Scope)
+<!-- What should agents NOT spend time on?
+
+     Example:
+     - "Don't analyze lithium—already have exposure"
+     - "Not interested in ETFs, individual stocks only" -->
+
+
+---
+
+## 5. RISK & DECISION FRAMEWORK
+
+### Risk Appetite
+<!-- Choose one: conservative | moderate | aggressive
+     Or describe: "Can tolerate 20% drawdown for 3x upside potential" -->
+
+
+### Decision Stakes
+<!-- How important is this decision? What's at stake?
+
+     Example:
+     - "Deploying $100K of personal capital"
+     - "Recommending to investment committee"
+     - "Exploratory research, no immediate action" -->
+
+
+### What Would Change Your Mind?
+<!-- What evidence would make you abandon your current view?
+     This helps Inversion and Epistemic agents focus.
+
+     Example:
+     - "If China lifts export restrictions, thesis breaks"
+     - "If management sells >10% of holdings, red flag" -->
+
+
+### Kill Criteria (Deal-Breakers)
+<!-- Automatic disqualifiers. If true, don't proceed.
+
+     Example:
+     - "Debt/Equity > 2x"
+     - "Insider selling in last 6 months"
+     - "No US production capacity" -->
+
+
+---
+
+## 6. OUTPUT PREFERENCES
+
+### Desired Depth
+<!-- Choose one: quick-scan | standard | deep-dive | exhaustive -->
+
+
+### Specific Questions to Answer
+<!-- List specific questions you want addressed. Agents will ensure these
+     are answered in the final report.
+
+     Example:
+     1. "What's the realistic TAM for rare earth in EVs by 2030?"
+     2. "Who are MP Materials' main customers and contract terms?"
+     3. "What happens if China bans exports entirely?" -->
+
+
+### Comparison Requests
+<!-- Want specific comparisons?
+
+     Example:
+     - "Compare MP Materials vs Lynas on valuation and production capacity"
+     - "How does this opportunity compare to my current LTHM position?" -->
+
+
+### Report Format Preferences
+<!-- Any preferences for the final output?
+
+     Example:
+     - "Include technical chart with entry/exit levels"
+     - "Want scenario analysis with probabilities"
+     - "Keep executive summary under 1 page" -->
+
+
+---
+
+## 7. ADDITIONAL CONTEXT (FREE-FORM)
+
+### Anything Else?
+<!-- Anything that doesn't fit above but might be relevant.
+     The more context, the better the analysis. -->
+
+
+---
+
+## INTAKE METADATA (Auto-filled)
+
+- **Submitted at:** [timestamp]
+- **Intake Quality Score:** [calculated after submission]
+- **Missing High-Value Fields:** [list]
+- **Intake Agent Review:** [pending/complete]
+```
+
+#### 1.7.2 Intake Agent Charter
+
+The Intake Agent reviews submitted forms and interactively gathers missing context through targeted questions.
+
+```markdown
+## Charter: Intake Agent
+
+You are the Intake Agent for deepmind1. Your role is to review user-submitted
+task intake forms and gather additional context that will help downstream
+agents perform better analysis.
+
+### Core Principles
+
+1. **Respect user time**: Ask only high-value questions
+2. **Adapt to objective**: Different objectives need different context
+3. **Don't interrogate**: 3-5 questions max per session
+4. **Explain why**: Tell users why each question matters
+5. **Accept "I don't know"**: Missing info is fine; flag it as assumption
+
+### Review Process
+
+1. **Parse submitted form** → Extract filled vs empty fields
+2. **Calculate quality score** → Identify gaps
+3. **Select questions** → Based on objective type and gaps
+4. **Ask interactively** → One question at a time, conversational
+5. **Synthesize** → Produce enriched TaskInput for Orchestrator
+
+### Question Selection Logic
+
+For each objective type, prioritize these fields:
+
+**INVEST objectives:**
+- MUST have: time_horizon, risk_appetite
+- HIGH VALUE: prior_hypotheses, kill_criteria, what_would_change_mind
+- HELPFUL: decision_stakes, comparison_requests
+
+**BUILD objectives:**
+- MUST have: constraints, time_horizon
+- HIGH VALUE: non_goals, prior_hypotheses
+- HELPFUL: reference_materials, specific_questions
+
+**EXPLORE objectives:**
+- MUST have: domain, specific_questions
+- HIGH VALUE: prior_hypotheses, information_already_have
+- HELPFUL: desired_depth
+
+**DECIDE objectives:**
+- MUST have: decision_stakes, time_horizon
+- HIGH VALUE: kill_criteria, what_would_change_mind, constraints
+- HELPFUL: risk_appetite, comparison_requests
+
+### Question Templates
+
+Use these templates, adapting tone to be conversational:
+
+**For missing time_horizon:**
+"What's your timeline for this? Are you looking at:
+- Days to weeks (tactical)
+- A few months (near-term)
+- 6-18 months (medium-term)
+- Multi-year (strategic)
+
+This helps us calibrate how much weight to put on near-term catalysts vs long-term fundamentals."
+
+**For missing risk_appetite:**
+"How much volatility can you stomach? For context:
+- Conservative: Prioritize capital preservation, accept lower returns
+- Moderate: Balanced approach, can handle normal market swings
+- Aggressive: Comfortable with significant drawdowns for higher upside
+
+Or describe in your own terms—e.g., 'Can handle 30% drawdown if thesis intact.'"
+
+**For missing prior_hypotheses:**
+"What's your current thinking on this? Even half-formed hunches help.
+Our agents will stress-test your hypotheses, not just confirm them.
+If you're truly starting from zero, that's fine too—just say so."
+
+**For missing what_would_change_mind:**
+"What would make you walk away from this opportunity?
+This helps our Inversion agent focus on the most decision-relevant risks.
+Example: 'If I learned management was selling shares, I'd reconsider.'"
+
+**For missing kill_criteria:**
+"Are there any automatic deal-breakers?
+Things that, if true, would immediately disqualify an option.
+Example: 'No companies with debt/equity > 2x' or 'Must have US operations.'"
+
+**For missing specific_questions:**
+"Are there particular questions you want answered?
+We'll make sure the final report addresses these explicitly.
+Example: 'What's the bear case for this sector?' or 'How does X compare to Y?'"
+
+### Output Format
+
+After gathering context, produce an enriched intake summary:
+
+```yaml
+intake_summary:
+  title: "[from form]"
+  one_line_ask: "[from form or synthesized]"
+  objective: "[invest|build|explore|decide|invent]"
+  time_horizon: "[from form or gathered]"
+
+  context_gathered:
+    - field: "risk_appetite"
+      value: "moderate - can handle 20% drawdown"
+      source: "user response to question 2"
+    - field: "prior_hypotheses"
+      value: ["MP is undervalued", "China risk is overstated"]
+      source: "original form"
+
+  flags_for_orchestrator:
+    - "User has existing LTHM position - note for Allocator"
+    - "Explicit kill criterion: no China exposure"
+    - "User wants technical entry levels in report"
+
+  assumptions_from_gaps:
+    - field: "geographic_focus"
+      assumed: "US-listed"
+      confidence: "medium"
+      rationale: "User mentioned 'public companies' without specifying"
+
+  quality_score: 0.78
+  quality_notes: "Strong on constraints and hypotheses, light on risk framework"
+```
+
+### Interaction Style
+
+- Be concise and friendly, not formal
+- Use bullet points for options
+- Acknowledge what they've already provided
+- Don't repeat questions they've answered
+- If they say "skip" or "I don't know", move on gracefully
+```
+
+#### 1.7.3 Intake Quality Score
+
+The Intake Quality Score predicts how well agents can perform given the provided context. It's **informational, not blocking**—low scores generate warnings, not errors.
+
+**Scoring Formula:**
+
+```python
+# skills/intake_quality.py
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+from enum import Enum
+
+class FieldImportance(str, Enum):
+    CRITICAL = "critical"      # 15 points
+    HIGH = "high"              # 10 points
+    MEDIUM = "medium"          # 5 points
+    LOW = "low"                # 2 points
+
+class ObjectiveType(str, Enum):
+    INVEST = "invest"
+    BUILD = "build"
+    EXPLORE = "explore"
+    DECIDE = "decide"
+    INVENT = "invent"
+
+# Field weights vary by objective type
+FIELD_WEIGHTS: Dict[ObjectiveType, Dict[str, FieldImportance]] = {
+    ObjectiveType.INVEST: {
+        "one_line_ask": FieldImportance.CRITICAL,
+        "time_horizon": FieldImportance.CRITICAL,
+        "risk_appetite": FieldImportance.HIGH,
+        "prior_hypotheses": FieldImportance.HIGH,
+        "kill_criteria": FieldImportance.HIGH,
+        "what_would_change_mind": FieldImportance.HIGH,
+        "constraints": FieldImportance.MEDIUM,
+        "domain": FieldImportance.MEDIUM,
+        "decision_stakes": FieldImportance.MEDIUM,
+        "background_context": FieldImportance.LOW,
+        "non_goals": FieldImportance.LOW,
+        "specific_questions": FieldImportance.LOW,
+    },
+    ObjectiveType.BUILD: {
+        "one_line_ask": FieldImportance.CRITICAL,
+        "constraints": FieldImportance.CRITICAL,
+        "time_horizon": FieldImportance.HIGH,
+        "non_goals": FieldImportance.HIGH,
+        "prior_hypotheses": FieldImportance.MEDIUM,
+        "reference_materials": FieldImportance.MEDIUM,
+        "specific_questions": FieldImportance.MEDIUM,
+        "background_context": FieldImportance.LOW,
+        "domain": FieldImportance.LOW,
+    },
+    ObjectiveType.EXPLORE: {
+        "one_line_ask": FieldImportance.CRITICAL,
+        "domain": FieldImportance.CRITICAL,
+        "specific_questions": FieldImportance.HIGH,
+        "prior_hypotheses": FieldImportance.MEDIUM,
+        "information_already_have": FieldImportance.MEDIUM,
+        "desired_depth": FieldImportance.MEDIUM,
+        "background_context": FieldImportance.LOW,
+        "time_horizon": FieldImportance.LOW,
+    },
+    ObjectiveType.DECIDE: {
+        "one_line_ask": FieldImportance.CRITICAL,
+        "decision_stakes": FieldImportance.CRITICAL,
+        "time_horizon": FieldImportance.HIGH,
+        "kill_criteria": FieldImportance.HIGH,
+        "what_would_change_mind": FieldImportance.HIGH,
+        "constraints": FieldImportance.HIGH,
+        "risk_appetite": FieldImportance.MEDIUM,
+        "prior_hypotheses": FieldImportance.MEDIUM,
+        "comparison_requests": FieldImportance.MEDIUM,
+        "background_context": FieldImportance.LOW,
+    },
+    ObjectiveType.INVENT: {
+        "one_line_ask": FieldImportance.CRITICAL,
+        "constraints": FieldImportance.HIGH,
+        "non_goals": FieldImportance.HIGH,
+        "background_context": FieldImportance.MEDIUM,
+        "prior_hypotheses": FieldImportance.MEDIUM,
+        "reference_materials": FieldImportance.MEDIUM,
+        "time_horizon": FieldImportance.LOW,
+    },
+}
+
+IMPORTANCE_POINTS = {
+    FieldImportance.CRITICAL: 15,
+    FieldImportance.HIGH: 10,
+    FieldImportance.MEDIUM: 5,
+    FieldImportance.LOW: 2,
+}
+
+class IntakeQualityResult(BaseModel):
+    score: float  # 0.0 to 1.0
+    grade: str  # A, B, C, D, F
+    points_earned: int
+    points_possible: int
+    filled_fields: List[str]
+    missing_fields: List[Dict[str, str]]  # [{field, importance, impact}]
+    warnings: List[str]
+    suggestions: List[str]
+
+def calculate_intake_quality(
+    intake: Dict,
+    objective: ObjectiveType
+) -> IntakeQualityResult:
+    """Calculate quality score for an intake form submission."""
+
+    weights = FIELD_WEIGHTS.get(objective, FIELD_WEIGHTS[ObjectiveType.EXPLORE])
+
+    points_earned = 0
+    points_possible = 0
+    filled_fields = []
+    missing_fields = []
+
+    for field, importance in weights.items():
+        points = IMPORTANCE_POINTS[importance]
+        points_possible += points
+
+        value = intake.get(field)
+        if value and str(value).strip():
+            points_earned += points
+            filled_fields.append(field)
+        else:
+            missing_fields.append({
+                "field": field,
+                "importance": importance.value,
+                "impact": f"-{points} points",
+            })
+
+    score = points_earned / points_possible if points_possible > 0 else 0
+
+    # Grade assignment
+    if score >= 0.9:
+        grade = "A"
+    elif score >= 0.75:
+        grade = "B"
+    elif score >= 0.6:
+        grade = "C"
+    elif score >= 0.4:
+        grade = "D"
+    else:
+        grade = "F"
+
+    # Generate warnings for critical missing fields
+    warnings = []
+    for mf in missing_fields:
+        if mf["importance"] == "critical":
+            warnings.append(f"Missing critical field: {mf['field']}")
+
+    # Generate suggestions
+    suggestions = []
+    high_value_missing = [mf for mf in missing_fields if mf["importance"] in ["critical", "high"]]
+    if high_value_missing:
+        suggestions.append(
+            f"Consider adding: {', '.join(mf['field'] for mf in high_value_missing[:3])}"
+        )
+
+    if score < 0.5:
+        suggestions.append(
+            "Low context score may result in more assumptions and less specific analysis"
+        )
+
+    return IntakeQualityResult(
+        score=round(score, 2),
+        grade=grade,
+        points_earned=points_earned,
+        points_possible=points_possible,
+        filled_fields=filled_fields,
+        missing_fields=missing_fields,
+        warnings=warnings,
+        suggestions=suggestions,
+    )
+```
+
+**Quality Score Interpretation:**
+
+| Grade | Score | Interpretation | System Behavior |
+|-------|-------|----------------|-----------------|
+| **A** | ≥90% | Excellent context | Full analysis, minimal assumptions |
+| **B** | 75-89% | Good context | Good analysis, few assumptions |
+| **C** | 60-74% | Adequate context | Standard analysis, moderate assumptions |
+| **D** | 40-59% | Limited context | Basic analysis, many assumptions flagged |
+| **F** | <40% | Minimal context | Will run, but warns extensively |
+
+**Example Output:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   INTAKE QUALITY REPORT                      │
+├─────────────────────────────────────────────────────────────┤
+│ Score: 72/100 (72%)                          Grade: C       │
+├─────────────────────────────────────────────────────────────┤
+│ ✓ Filled: one_line_ask, time_horizon, constraints,         │
+│           prior_hypotheses, domain                           │
+│                                                              │
+│ ✗ Missing (High Value):                                      │
+│   - risk_appetite (HIGH) → -10 pts                          │
+│   - kill_criteria (HIGH) → -10 pts                          │
+│   - what_would_change_mind (HIGH) → -10 pts                 │
+│                                                              │
+│ ⚠ Warnings:                                                  │
+│   None                                                       │
+│                                                              │
+│ 💡 Suggestions:                                              │
+│   - Consider adding: risk_appetite, kill_criteria           │
+│   - Intake Agent can help gather missing context            │
+├─────────────────────────────────────────────────────────────┤
+│ [Continue with current input] [Run Intake Agent] [Edit Form]│
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 1.7.4 Objective-Specific Question Sets
+
+The Intake Agent adapts its questions based on the declared objective:
+
+**INVEST Objective — Investment Analysis**
+```yaml
+required_context:
+  - time_horizon: "Investment timeline affects valuation methods and catalyst importance"
+  - risk_appetite: "Calibrates position sizing and stop-loss recommendations"
+
+high_value_questions:
+  - "What's your current portfolio exposure to this sector?"
+  - "Are there specific valuation thresholds that would make this attractive?"
+  - "What macro conditions would invalidate this thesis?"
+  - "Do you have a target position size in mind?"
+
+adaptive_questions:
+  if_short_horizon:
+    - "Are there near-term catalysts you're watching?"
+    - "What's your exit trigger?"
+  if_long_horizon:
+    - "What structural trends support this investment?"
+    - "How important is dividend/income vs appreciation?"
+```
+
+**BUILD Objective — Building/Creating Something**
+```yaml
+required_context:
+  - constraints: "Technical, budget, timeline, resource constraints"
+  - success_criteria: "How will you know if this succeeded?"
+
+high_value_questions:
+  - "What's the MVP vs full vision?"
+  - "Who are the stakeholders and what do they care about?"
+  - "What have you already tried or ruled out?"
+  - "Are there existing solutions you're replacing or improving on?"
+
+adaptive_questions:
+  if_technical:
+    - "What's the existing tech stack?"
+    - "Any integration requirements?"
+  if_process:
+    - "Who needs to approve this?"
+    - "What's the change management plan?"
+```
+
+**EXPLORE Objective — Research/Learning**
+```yaml
+required_context:
+  - domain: "What area are you exploring?"
+  - depth: "Surface scan or deep understanding?"
+
+high_value_questions:
+  - "What do you already know about this topic?"
+  - "Are there specific aspects you're most curious about?"
+  - "Who is the audience for this research?"
+  - "What would make this exploration 'complete'?"
+
+adaptive_questions:
+  if_new_domain:
+    - "Want a glossary of key terms included?"
+    - "Should we map the key players/companies in this space?"
+  if_familiar_domain:
+    - "What's the specific angle you want to explore?"
+    - "Any recent developments you want focus on?"
+```
+
+**DECIDE Objective — Making a Decision**
+```yaml
+required_context:
+  - decision_stakes: "What's riding on this decision?"
+  - options: "What are the alternatives you're considering?"
+
+high_value_questions:
+  - "What's the cost of being wrong?"
+  - "What's the cost of delaying this decision?"
+  - "Who else is involved in making this decision?"
+  - "What information would make this decision obvious?"
+
+adaptive_questions:
+  if_reversible:
+    - "If this doesn't work, what's the fallback?"
+  if_irreversible:
+    - "What's your confidence threshold for proceeding?"
+    - "What additional diligence would increase confidence?"
+```
+
+#### 1.7.5 Intake Pipeline Integration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER                                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                    Submits intake form
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    INTAKE PARSER                                 │
+│                                                                  │
+│   - Validates markdown structure                                 │
+│   - Extracts field values                                        │
+│   - Calculates initial quality score                            │
+│   - Identifies objective type                                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │ Score >= 75%?   │
+                    └─────────────────┘
+                     /              \
+                   Yes              No
+                   /                  \
+                  ▼                    ▼
+    ┌──────────────────┐    ┌──────────────────────────────────┐
+    │ Skip to          │    │        INTAKE AGENT               │
+    │ Orchestrator     │    │                                    │
+    │ (user can still  │    │  - Reviews gaps                   │
+    │  request agent)  │    │  - Asks 3-5 targeted questions    │
+    └──────────────────┘    │  - User responds (or skips)       │
+                            │  - Enriches TaskInput              │
+                            │  - Recalculates quality score     │
+                            └──────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    ENRICHED TASK INPUT                          │
+│                                                                  │
+│   - All user-provided fields                                    │
+│   - Agent-gathered context                                      │
+│   - Flagged assumptions (from gaps)                             │
+│   - Quality score + warnings                                    │
+│   - Orchestration hints                                         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       ORCHESTRATOR                               │
+│                                                                  │
+│   Receives enriched context, including:                         │
+│   - intake_quality_score: 0.82                                  │
+│   - assumptions_from_gaps: [...]                                │
+│   - flags_for_agents: [...]                                     │
+│   - user_specific_questions: [...]                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**CLI Integration:**
+
+```bash
+# Run with intake form
+python -m runner.run --intake inputs/my_task_intake.md
+
+# Run with intake agent (interactive)
+python -m runner.run --intake inputs/my_task_intake.md --intake-agent
+
+# Skip intake agent even if score is low
+python -m runner.run --intake inputs/my_task_intake.md --skip-intake-agent
+
+# Show quality score without running pipeline
+python -m runner.run --intake inputs/my_task_intake.md --check-intake-only
+```
+
+#### 1.7.6 Intake Agent Model Configuration
+
+| Agent | Model | Thinking Mode | Rationale |
+|-------|-------|---------------|-----------|
+| **Intake Agent** | Sonnet 4 | Standard | Conversational, structured extraction, no deep reasoning needed |
+
+```python
+# Add to config/models.py
+AGENT_MODEL_CONFIG["intake"] = AgentModelConfig(
+    model="claude-sonnet-4-20250514",
+    thinking=ThinkingMode.STANDARD,
+    temperature=0.7,  # Slightly higher for conversational warmth
+    max_output_tokens=2048,
+)
+```
+
+### 1.8 Key Design Principles
 
 1. **Separation of Concerns:** Reasoning agents decide *what matters*; skills generate *truthful artifacts*; reporting tells *coherent stories from verified outputs*
 2. **Auditability:** Every decision has a traceable provenance chain with hashes and timestamps
@@ -1656,12 +2385,44 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 # Verify: All DB tables populated correctly
 ```
 
+#### Phase 1F: Intake System
+**Dependencies:** Phase 1C (LLM wrapper needed for Intake Agent)
+
+**Deliverables:**
+- [ ] `inputs/intake_template.md` - Intake form template
+- [ ] `runner/intake.py` - Intake parser and quality scoring
+- [ ] `skills/intake_quality.py` - Quality score calculation
+- [ ] `charters/intake.md` - Intake Agent charter
+- [ ] Intake Agent integration with CLI
+- [ ] Quality score display and warnings
+- [ ] `--intake-agent` flag for interactive mode
+- [ ] `--check-intake-only` for validation without pipeline
+- [ ] Notebook: `05_phase1_intake_system.ipynb`
+
+**Validation Checkpoint:**
+```bash
+# Test intake parsing and quality scoring
+python -m runner.run --intake inputs/example_intakes/minimal.md --check-intake-only
+# Expected output:
+# Intake Quality Score: 45% (Grade: D)
+# ⚠ Missing critical field: time_horizon
+# 💡 Suggestion: Consider adding risk_appetite, kill_criteria
+
+# Test with Intake Agent
+python -m runner.run --intake inputs/example_intakes/partial.md --intake-agent
+# Expected: Interactive questions to gather missing context
+
+# Test full flow
+python -m runner.run --intake inputs/example_intakes/complete.md
+# Verify: Enriched TaskInput passed to Orchestrator with quality metadata
+```
+
 ---
 
 ### Phase 2: Enhancement & Hardening
 
 #### Phase 2A: Skills Layer & Plotting
-**Dependencies:** Phase 1E
+**Dependencies:** Phase 1F
 
 **Deliverables:**
 - [ ] Structured extractors (assumptions, questions, conflicts)
@@ -2491,15 +3252,16 @@ runner/
 charters/
 ├── orchestrator.md
 ├── reporting.md
-└── agents/
-    ├── 01_systems.md
-    ├── 02_inversion.md
-    ├── 03_allocator.md
-    ├── 04_incentives_timing.md
-    ├── 05_epistemic.md
-    ├── 06_screener.md         # Equity: ticker identification
-    ├── 07_fundamental.md      # Equity: valuation & financials
-    └── 08_technical.md        # Equity: chart & momentum analysis
+├── intake.md                  # Intake Agent (Phase 1F)
+├── agents/
+│   ├── 01_systems.md
+│   ├── 02_inversion.md
+│   ├── 03_allocator.md
+│   ├── 04_incentives_timing.md
+│   ├── 05_epistemic.md
+│   ├── 06_screener.md         # Equity: ticker identification
+│   ├── 07_fundamental.md      # Equity: valuation & financials
+│   └── 08_technical.md        # Equity: chart & momentum analysis
 │
 └── cove/                      # Chain-of-Verification (Phase 2C)
     ├── generator.md           # Claim extraction
@@ -2516,6 +3278,7 @@ runner/
 ├── db.py              # DuckDB operations
 ├── llm.py             # Provider abstraction
 ├── utils.py           # Utilities, hashing
+├── intake.py          # Intake parser and agent (Phase 1F)
 └── cove.py            # CoVe module orchestration (Phase 2C)
 
 skills/
@@ -2525,6 +3288,9 @@ skills/
 ├── memo_builder.py      # Report assembly
 ├── conflicts.py         # Conflict detection
 ├── financials.py        # Financial data parsing
+│
+├── # Intake System (Phase 1F)
+├── intake_quality.py    # Intake quality scoring
 │
 ├── # Reporting & Visualization (Phase 2A/2E)
 ├── plotting.py          # Publication-quality chart generation
@@ -2553,20 +3319,26 @@ notebooks/
 ├── 02_phase1_single_agent_call.ipynb
 ├── 03_phase1_parallel_then_synth.ipynb
 ├── 04_phase1_full_pipeline.ipynb
-├── 05_phase2_skills_and_report.ipynb
-├── 06_phase2_regression_tests.ipynb
-├── 07_phase2_equity_research.ipynb
-├── 08_phase2_cove_module.ipynb
-└── 09_phase2_report_quality.ipynb
+├── 05_phase1_intake_system.ipynb
+├── 06_phase2_skills_and_report.ipynb
+├── 07_phase2_regression_tests.ipynb
+├── 08_phase2_equity_research.ipynb
+├── 09_phase2_cove_module.ipynb
+└── 10_phase2_report_quality.ipynb
 
 data/
 ├── runs/.gitkeep
 └── ledger.duckdb      # Created at runtime
 
 inputs/
-├── task_template.md
-└── example_tasks/
-    └── ai_gpu_optics.md
+├── task_template.md           # Legacy task format (still supported)
+├── intake_template.md         # Intake form template (Phase 1F)
+├── example_tasks/
+│   └── ai_gpu_optics.md
+└── example_intakes/           # Example intake forms (Phase 1F)
+    ├── minimal.md             # Minimal input for testing
+    ├── partial.md             # Partial input for Intake Agent test
+    └── complete.md            # Complete intake example
 ```
 
 ---
@@ -2789,6 +3561,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.9 | 2026-02-03 | **Intake System** (Section 1.7): Added comprehensive Intake Form template with 7 sections and 20+ guided fields. Intake Agent charter for interactive context gathering. Intake Quality Score system with objective-specific field weighting. Objective-specific question sets (invest/build/explore/decide/invent). Pipeline integration with CLI flags (--intake, --intake-agent, --check-intake-only). Flexible approach: all fields optional with quality warnings. Phase 1F for intake implementation. |
 | 1.8 | 2026-02-03 | **Reporting Agent & Report Quality Standards** (Section 1.6): Added comprehensive Reporting Agent Charter with Amazon memo philosophy. Sell-side quality standards and enforcement. Full report template with required sections. Plotting skills specification (plotly/matplotlib, chart types, style guide). Report quality gate system with automated checks. Phase 2E for report quality implementation. Shippable report definition and criteria. |
 | 1.7 | 2026-02-03 | Added Equity Agent Charter Prompts: Stock Screener criteria, Fundamental Analyst framework, Technical Chart breakdown, Risk Manager enhancement, News Impact Analyzer skill, Daily Market Routine for orchestrator. Professional prompt patterns for each agent role. |
 | 1.6 | 2026-02-03 | Added Chain-of-Verification (CoVe) module (Section 1.5): Generator/Skeptic/Verifier/Editor agents for claim verification. CoVe trigger conditions, stop conditions, and integration with existing pipeline. Phase 2C for CoVe implementation. Database schema for verification tracking. Model config for CoVe agents. |
@@ -2801,6 +3574,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.8*
+*Document Version: 1.9*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
