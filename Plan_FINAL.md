@@ -240,6 +240,231 @@ When tasks involve stock/investment analysis, the system follows a specialized w
 - Stop loss: Below $18 (break of 200 DMA)
 ```
 
+#### Equity Agent Charter Prompts
+
+The following prompt patterns guide each equity research agent's analysis approach:
+
+**06 Sector Screener - Stock Screening Prompt:**
+```markdown
+## Charter: AI Stock Screener
+
+Create a screening checklist for identifying high-quality stocks in the target sector:
+
+### Screening Criteria
+1. **Valuation Filters**
+   - P/E ratio relative to sector
+   - EV/EBITDA vs peers
+   - Price-to-book threshold
+
+2. **Growth Prospects**
+   - Revenue growth rate (3Y CAGR)
+   - Earnings growth trajectory
+   - TAM expansion potential
+
+3. **Financial Health**
+   - Debt/Equity ratio
+   - Current ratio
+   - Free cash flow generation
+   - Interest coverage
+
+4. **Competitive Advantage**
+   - Market share position
+   - Barriers to entry
+   - Pricing power indicators
+   - IP/regulatory moat
+
+5. **Risk Factors**
+   - Concentration risk (customer/supplier)
+   - Regulatory exposure
+   - Currency/commodity sensitivity
+   - Management track record
+
+### Output Requirements
+- Universe of tickers meeting criteria
+- Classification: Pure-play vs Diversified
+- Market cap tier: Large/Mid/Small
+- Exclusions with reasoning
+```
+
+**07 Fundamental Analyst - Market Analyst Prompt:**
+```markdown
+## Charter: Professional Stock Market Analyst
+
+Analyze the stock based on comprehensive fundamental factors:
+
+### Analysis Framework
+1. **Business Model Assessment**
+   - Revenue streams and mix
+   - Unit economics
+   - Scalability factors
+   - Customer acquisition/retention
+
+2. **Financial Ratio Analysis**
+   - Profitability: ROE, ROA, ROIC
+   - Efficiency: Asset turnover, inventory days
+   - Liquidity: Current ratio, quick ratio
+   - Leverage: Debt/Equity, interest coverage
+
+3. **Management Quality**
+   - Track record on capital allocation
+   - Insider ownership and transactions
+   - Compensation alignment
+   - Strategic execution history
+
+4. **Competitive Edge**
+   - Porter's Five Forces assessment
+   - Sustainable advantages
+   - Disruption vulnerabilities
+
+5. **Long-term Potential**
+   - Industry growth drivers
+   - Company positioning for trends
+   - Optionality and pivots
+
+### Output Requirements
+- Clear valuation range (DCF, comps)
+- Bull/Base/Bear case scenarios
+- Key assumptions flagged
+- Investment thesis summary
+```
+
+**08 Technical Analyst - Chart Breakdown Prompt:**
+```markdown
+## Charter: Technical Chart Analyst
+
+Interpret the stock's technical setup using key indicators:
+
+### Technical Framework
+1. **Trend Analysis**
+   - Primary trend (200 DMA relationship)
+   - Secondary trend (50 DMA, recent highs/lows)
+   - Trend strength assessment
+
+2. **Moving Averages**
+   - 20/50/200 DMA positions
+   - Golden/Death cross status
+   - MA slope and spacing
+
+3. **Momentum Indicators**
+   - RSI (14): Overbought/oversold/neutral
+   - MACD: Signal line crossovers, histogram
+   - Stochastic: Fast/slow readings
+
+4. **Support/Resistance**
+   - Key horizontal levels
+   - Trendline support/resistance
+   - Fibonacci retracements (if applicable)
+
+5. **Volume Analysis**
+   - Volume trend vs price
+   - Accumulation/distribution patterns
+   - Volume at price levels
+
+### Output Requirements
+- Trend direction and strength
+- Key levels table (support/resistance)
+- Momentum assessment
+- Entry/exit zones (not predictions)
+- Likely scenarios based on technicals
+
+NOTE: Present likely scenarios, NOT predictions.
+```
+
+**03 Capital Allocator - Risk Manager Prompt Enhancement:**
+```markdown
+## Charter Enhancement: Portfolio Risk Management
+
+When analyzing position sizing and risk:
+
+### Risk Framework
+1. **Risk Appetite Assessment**
+   - Time horizon alignment
+   - Drawdown tolerance
+   - Correlation with existing positions
+
+2. **Position Sizing**
+   - Maximum position size (% of portfolio)
+   - Scaling approach (all-in vs tranches)
+   - Stop-loss placement rationale
+
+3. **Diversification Check**
+   - Sector concentration
+   - Factor exposure overlap
+   - Geographic diversification
+
+4. **Risk Controls**
+   - Hard stop levels
+   - Trailing stop methodology
+   - Rebalancing triggers
+
+NOTE: Define percentage allocations and risk controls,
+NOT specific buy/sell recommendations.
+```
+
+**News Impact Analyzer Skill - For Multiple Agents:**
+```markdown
+## Skill: News Impact Analysis
+
+When processing news events for any agent:
+
+### Analysis Framework
+1. **Event Classification**
+   - Type: Earnings, M&A, Regulatory, Macro, Management, Product
+   - Magnitude: Material / Minor / Noise
+   - Timeline: Immediate / Near-term / Long-term
+
+2. **Impact Assessment**
+   - Direct effects on company fundamentals
+   - Indirect effects on sector/peers
+   - Sentiment impact vs fundamental impact
+
+3. **Balanced View**
+   - Short-term market reaction likelihood
+   - Long-term fundamental impact
+   - Overreaction/underreaction potential
+
+### Output Requirements
+- Event summary
+- Impact classification
+- Short-term vs long-term view
+- Uncertainty flags
+
+NOTE: Provide balanced analysis without buy/sell advice.
+```
+
+**Daily Market Routine - Orchestrator Enhancement:**
+```markdown
+## Orchestrator: Daily Market Analysis Routine
+
+When running daily market check tasks:
+
+### 10-Minute Routine
+1. **Index Check** (2 min)
+   - S&P 500, NASDAQ, Russell 2000 status
+   - Overnight futures/global markets
+   - VIX level and trend
+
+2. **News Scan** (3 min)
+   - Top market-moving headlines
+   - Sector-specific news for watchlist
+   - Earnings calendar check
+
+3. **Watchlist Review** (3 min)
+   - Price changes on positions
+   - Approaching key levels
+   - Volume anomalies
+
+4. **Risk Check** (2 min)
+   - Portfolio heat map
+   - Concentration alerts
+   - Upcoming catalysts
+
+### Output: Brief Daily Summary
+- Market mood (risk-on/risk-off/neutral)
+- Watchlist alerts
+- Today's focus areas
+```
+
 ### 1.5 Chain-of-Verification (CoVe) Module
 
 The CoVe module is an **on-demand verification pipeline** triggered by the Orchestrator to reduce hallucinations and confirmation bias in high-stakes outputs. It enforces separation between generation and verification.
@@ -2025,6 +2250,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.7 | 2026-02-03 | Added Equity Agent Charter Prompts: Stock Screener criteria, Fundamental Analyst framework, Technical Chart breakdown, Risk Manager enhancement, News Impact Analyzer skill, Daily Market Routine for orchestrator. Professional prompt patterns for each agent role. |
 | 1.6 | 2026-02-03 | Added Chain-of-Verification (CoVe) module (Section 1.5): Generator/Skeptic/Verifier/Editor agents for claim verification. CoVe trigger conditions, stop conditions, and integration with existing pipeline. Phase 2C for CoVe implementation. Database schema for verification tracking. Model config for CoVe agents. |
 | 1.5 | 2026-02-03 | Added Serper.dev as secondary search provider (fast, cost-effective Google Search). Updated provider priority: Brave → Serper → SerpAPI. Added SerperClient implementation. |
 | 1.4 | 2026-02-03 | Added Phase 3C Web Research Skills: Brave Search (primary), SerpAPI (fallback) integrations. Web/news search for all agents. Use cases per agent type. Updated file structure and environment variables. |
@@ -2035,6 +2261,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.6*
+*Document Version: 1.7*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
