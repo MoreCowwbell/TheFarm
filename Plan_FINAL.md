@@ -195,6 +195,173 @@ def preflight_checks() -> List[str]:
 | Regression Tests | Charter adherence | Golden file comparison |
 | Cost Tests | Budget enforcement | Mock provider responses |
 
+### 2.6 LLM Provider & Model Strategy
+
+#### 2.6.1 Provider Priority
+
+**Primary Provider:** Anthropic (Claude)
+**Fallback Provider:** OpenAI (GPT-4o)
+
+Rationale for Claude-first approach:
+- Consistent reasoning patterns across agents
+- Strong performance on complex multi-step analysis
+- Reliable structured output adherence
+- Single pricing model for cost predictability
+- Easier prompt tuning and debugging
+
+```python
+# config/models.py
+PROVIDER_PRIORITY = ["anthropic", "openai"]  # Primary, then fallback
+
+FALLBACK_TRIGGERS = [
+    "rate_limited",
+    "provider_unavailable",
+    "timeout",
+    "5xx_error",
+]
+```
+
+#### 2.6.2 Model Tiering by Agent
+
+Start with best-performing configuration, optimize for cost later based on token usage data.
+
+| Agent | Model | Thinking Mode | Max Thinking Tokens | Rationale |
+|-------|-------|---------------|---------------------|-----------|
+| **Orchestrator** | Opus 4.5 | Extended | 10,000 | Synthesis across 5 agents, conflict resolution, planning |
+| **01 Systems** | Opus 4.5 | Extended | 8,000 | Second-order effects require deep reasoning chains |
+| **02 Inversion** | Opus 4.5 | Extended | 8,000 | Must find non-obvious failure modes |
+| **03 Allocator** | Sonnet 4 | Standard | — | More structured/quantitative analysis |
+| **04 Incentives** | Sonnet 4 | Standard | — | Pattern matching, less novel reasoning |
+| **05 Epistemic** | Opus 4.5 | Extended | 10,000 | Meta-reasoning, catching what others missed |
+| **Reporting** | Sonnet 4 | Standard | — | Summarization and formatting |
+
+#### 2.6.3 Extended Thinking Rationale
+
+Extended thinking mode provides value for agents that must:
+- Weigh conflicting information (Orchestrator)
+- Explore non-obvious failure paths (Inversion)
+- Trace complex causal chains (Systems)
+- Reflect on reasoning quality (Epistemic)
+
+Standard mode is sufficient for:
+- Structured quantitative analysis (Allocator)
+- Pattern-based incentive mapping (Incentives)
+- Report assembly from existing content (Reporting)
+
+#### 2.6.4 Per-Agent Configuration
+
+```python
+# config/models.py
+from enum import Enum
+from typing import Optional
+from pydantic import BaseModel
+
+class ThinkingMode(str, Enum):
+    STANDARD = "standard"
+    EXTENDED = "extended"
+
+class AgentModelConfig(BaseModel):
+    provider: str = "anthropic"
+    model: str
+    thinking: ThinkingMode = ThinkingMode.STANDARD
+    max_thinking_tokens: Optional[int] = None
+    temperature: float = 0.7
+    max_output_tokens: int = 4096
+
+AGENT_MODEL_CONFIG: dict[str, AgentModelConfig] = {
+    "orchestrator": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=10000,
+    ),
+    "01_systems": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=8000,
+    ),
+    "02_inversion": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=8000,
+    ),
+    "03_allocator": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+    "04_incentives": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+    "05_epistemic": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=10000,
+    ),
+    "reporting": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+}
+
+# Fallback configuration for all agents
+FALLBACK_CONFIG = AgentModelConfig(
+    provider="openai",
+    model="gpt-4o",
+    thinking=ThinkingMode.STANDARD,
+)
+```
+
+#### 2.6.5 Environment Overrides
+
+Allow per-agent model overrides via environment variables for testing and cost optimization:
+
+```bash
+# .env overrides (optional)
+AGENT_ORCHESTRATOR_MODEL=claude-sonnet-4-20250514
+AGENT_01_SYSTEMS_MODEL=claude-haiku-3-5-20241022
+AGENT_05_EPISTEMIC_THINKING=standard
+```
+
+```python
+# config/models.py - environment override logic
+import os
+
+def get_agent_config(agent_name: str) -> AgentModelConfig:
+    """Get config with environment overrides."""
+    base_config = AGENT_MODEL_CONFIG.get(agent_name, FALLBACK_CONFIG)
+
+    # Check for env overrides
+    env_prefix = f"AGENT_{agent_name.upper()}"
+    if model_override := os.getenv(f"{env_prefix}_MODEL"):
+        base_config = base_config.model_copy(update={"model": model_override})
+    if thinking_override := os.getenv(f"{env_prefix}_THINKING"):
+        base_config = base_config.model_copy(
+            update={"thinking": ThinkingMode(thinking_override)}
+        )
+
+    return base_config
+```
+
+#### 2.6.6 Cost Optimization Path
+
+1. **Phase 1:** Start with Opus 4.5 + Extended Thinking for complex agents
+2. **Monitor:** Track token usage per agent via `cost_tracking` table
+3. **Analyze:** Identify agents with highest burn rates
+4. **Test:** A/B test Sonnet vs Opus on high-burn agents
+5. **Downgrade:** Only switch to cheaper models when quality is validated
+
+```python
+# Example: Query to identify optimization candidates
+SELECT
+    agent_name,
+    SUM(tokens_in + tokens_out) as total_tokens,
+    SUM(cost_usd) as total_cost,
+    AVG(cost_usd) as avg_cost_per_call
+FROM cost_tracking
+GROUP BY agent_name
+ORDER BY total_cost DESC;
+```
+
 ---
 
 ## 3. Refined Phase Plan
@@ -344,15 +511,20 @@ The original schema is well-designed. Maintain as specified:
 ### 4.2 Recommended Additions
 
 ```sql
--- Track costs and budgets
+-- Track costs and budgets (with model details for optimization analysis)
 CREATE TABLE IF NOT EXISTS cost_tracking (
     tracking_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
     provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    thinking_mode TEXT DEFAULT 'standard',
+    thinking_tokens INTEGER DEFAULT 0,
     tokens_in INTEGER,
     tokens_out INTEGER,
     cost_usd DOUBLE,
     cumulative_run_cost DOUBLE,
+    latency_ms INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -571,8 +743,15 @@ python -m runner.run \
     --sequential-only     # Debug: skip parallel, run sequential only
     --no-db               # Skip database logging
     --dry-run             # Print plan without API calls
-    --provider PROVIDER   # Override default provider
+    --provider PROVIDER   # Override default provider for all agents
+    --model MODEL         # Override default model for all agents
+    --no-thinking         # Disable extended thinking for all agents
     --verbose             # Detailed logging
+
+# Model override examples
+python -m runner.run --task inputs/task.md --model claude-sonnet-4-20250514  # Cost-saving run
+python -m runner.run --task inputs/task.md --no-thinking                      # Disable extended thinking
+python -m runner.run --task inputs/task.md --provider openai --model gpt-4o   # Use OpenAI
 ```
 
 ---
@@ -662,6 +841,15 @@ medium
 
 ---
 
-*Document Version: 1.0*
+## 12. Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.1 | 2026-02-03 | Added LLM Provider & Model Strategy (Section 2.6): Claude-first approach, per-agent model tiering, extended thinking configuration, environment overrides, cost optimization path |
+| 1.0 | 2026-02-03 | Initial final plan with improvements and recommendations |
+
+---
+
+*Document Version: 1.1*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
