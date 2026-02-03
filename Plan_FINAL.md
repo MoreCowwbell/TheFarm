@@ -14,9 +14,9 @@ This document provides a refined, actionable project plan for building **deepmin
 
 deepmind1 is a **prompt-orchestrated multi-agent system** that:
 - Ingests structured or free-form research tasks
-- Executes parallel analysis through 5 specialized reasoning agents
+- Executes parallel analysis through 8 specialized reasoning agents
 - Synthesizes findings through an orchestrator
-- Performs sequential deep-dives based on initial findings
+- Performs sequential deep-dives based on initial findings (including equity research)
 - Produces auditable, human-readable reports with full provenance
 
 ### 1.2 Agent Architecture
@@ -31,32 +31,37 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 ┌─────────────────────────────────────────────────────────────────┐
 │                       ORCHESTRATOR                              │
 │   - Normalizes input                                            │
-│   - Routes to agents                                            │
+│   - Routes to agents (selects relevant subset)                  │
 │   - Synthesizes findings                                        │
 │   - Plans sequential deep-dives                                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
-           ┌──────────────────┼──────────────────┐
-           │                  │                  │
-           ▼                  ▼                  ▼
-    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-    │   PARALLEL   │  │   PARALLEL   │  │   PARALLEL   │
-    │    PASS      │  │    PASS      │  │    PASS      │
-    │  (5 Agents)  │  │  (5 Agents)  │  │  (5 Agents)  │
-    └──────────────┘  └──────────────┘  └──────────────┘
-           │                  │                  │
-           └──────────────────┼──────────────────┘
+     ┌────────────────────────┼────────────────────────┐
+     │                        │                        │
+     ▼                        ▼                        ▼
+┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+│   PARALLEL   │       │   PARALLEL   │       │   PARALLEL   │
+│    PASS      │       │    PASS      │       │    PASS      │
+│              │       │              │       │              │
+│ Strategic    │       │ Equity       │       │ Meta         │
+│ Agents       │       │ Research     │       │ Agents       │
+│ (01-04)      │       │ (06-08)      │       │ (05)         │
+└──────────────┘       └──────────────┘       └──────────────┘
+     │                        │                        │
+     └────────────────────────┼────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    ORCHESTRATOR SYNTHESIS                       │
-│            (Conflict resolution, priority ranking)              │
+│   - Conflict resolution, priority ranking                       │
+│   - Ticker shortlist from Screener → route to Fundamental/Tech  │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                    SEQUENTIAL DEEP-DIVE                         │
-│        (Targeted follow-up by selected agents)                  │
+│   - Targeted follow-up by selected agents                       │
+│   - Per-ticker fundamental & technical analysis                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -70,11 +75,15 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 │                        OUTPUTS                                  │
 │   - data/runs/<run_id>/                                        │
 │   - DuckDB ledger                                               │
-│   - Final memo                                                  │
+│   - Final memo with ranked tickers & analysis                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.3 The Five Core Agents
+### 1.3 Core Agents
+
+The system employs 8 specialized agents organized into three categories:
+
+#### Strategic Reasoning Agents (01-04)
 
 | Agent | Primary Focus | Key Outputs |
 |-------|---------------|-------------|
@@ -82,9 +91,156 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 | **02 Inversion Thinking** | Failure modes, fragility, downside scenarios | Kill criteria, fragility analysis, mitigations |
 | **03 Capital Allocation** | Opportunity cost, portfolio fit, alternatives | Best alternatives, decision thresholds, required returns |
 | **04 Incentives & Timing** | Stakeholder incentives, market timing, power dynamics | Incentive map, timing indicators, value capture analysis |
-| **05 Epistemic Reality Check** | Knowledge vs assumptions, confidence calibration | Know/assume/speculate table, overconfidence flags |
 
-### 1.4 Key Design Principles
+#### Equity Research Agents (06-08)
+
+| Agent | Primary Focus | Key Outputs |
+|-------|---------------|-------------|
+| **06 Sector Screener** | Ticker identification, competitive landscape, universe building | List of relevant tickers, market cap tiers, pure-play vs diversified classification, sector positioning |
+| **07 Fundamental Analyst** | Valuation, financial statements, earnings quality | P/E, EV/EBITDA, DCF range, balance sheet risks, earnings quality score, capital structure analysis |
+| **08 Technical Analyst** | Price action, chart patterns, momentum indicators | Trend direction, support/resistance levels, volume analysis, RSI/MACD signals, entry/exit zones |
+
+#### Meta Agents (05)
+
+| Agent | Primary Focus | Key Outputs |
+|-------|---------------|-------------|
+| **05 Epistemic Reality Check** | Knowledge vs assumptions, confidence calibration | Know/assume/speculate table, overconfidence flags, data quality assessment |
+
+### 1.4 Equity Research Workflow
+
+When tasks involve stock/investment analysis, the system follows a specialized workflow:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  TASK: "Diligence on rare earth mineral investment"            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    PARALLEL PASS #1                             │
+│                                                                 │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ 01 Systems  │  │ 06 Screener │  │ 04 Incent.  │             │
+│  │             │  │             │  │             │             │
+│  │ Value chain │  │ Find tickers│  │ China/govt  │             │
+│  │ dynamics    │  │ MP, LTHM,   │  │ incentives  │             │
+│  │             │  │ ALB, SGML...│  │             │             │
+│  └─────────────┘  └─────────────┘  └─────────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 ORCHESTRATOR SYNTHESIS                          │
+│                                                                 │
+│  "Screener found 8 tickers. Shortlist top 4 by relevance:      │
+│   MP Materials, Lynas, Albemarle, Sigma Lithium"               │
+│                                                                 │
+│  "Route to Fundamental + Technical for deep-dive"               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   SEQUENTIAL DEEP-DIVE                          │
+│                                                                 │
+│  FOR EACH ticker IN [MP, LTHM, ALB, SGML]:                     │
+│    ├── 07 Fundamental → Valuation, financials, earnings        │
+│    └── 08 Technical   → Chart analysis, entry/exit levels      │
+│                                                                 │
+│  THEN:                                                          │
+│    └── 02 Inversion   → "What kills the rare earth thesis?"    │
+│    └── 05 Epistemic   → Confidence check on all assumptions    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    REPORTING AGENT                              │
+│                                                                 │
+│  Final memo includes:                                           │
+│  - Sector overview & thesis                                     │
+│  - Ranked ticker recommendations                                │
+│  - Per-ticker: valuation summary, technical levels, risks       │
+│  - Kill criteria & assumption audit                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Agent Output Examples
+
+**06 Sector Screener Output:**
+```markdown
+## Rare Earth / Critical Minerals Universe
+
+### Pure-Play Exposure
+| Ticker | Company | Mkt Cap | Focus | Notes |
+|--------|---------|---------|-------|-------|
+| MP | MP Materials | $4.2B | Rare earth | Only US rare earth miner |
+| LTHM | Livent | $3.1B | Lithium | Spin-off from FMC |
+
+### Diversified Exposure
+| Ticker | Company | Mkt Cap | RE Revenue % | Notes |
+|--------|---------|---------|--------------|-------|
+| ALB | Albemarle | $15B | ~30% | Lithium + bromine |
+
+### Excluded (with reason)
+- VALE: Too diversified, <5% rare earth exposure
+- RIO: Minimal direct exposure
+```
+
+**07 Fundamental Analyst Output:**
+```markdown
+## MP Materials (MP) - Fundamental Analysis
+
+### Valuation Summary
+| Metric | Value | Sector Avg | Assessment |
+|--------|-------|------------|------------|
+| P/E (FWD) | 28.4x | 22.1x | Premium |
+| EV/EBITDA | 14.2x | 11.8x | Slight premium |
+| P/B | 3.1x | 2.4x | Premium |
+
+### DCF Range: $18 - $32 (current: $24)
+
+### Earnings Quality
+- Revenue recognition: Clean
+- Accruals ratio: 0.04 (healthy)
+- Insider transactions: Net buying last 6mo
+
+### Balance Sheet Risks
+- Debt/Equity: 0.3x (low)
+- Current ratio: 2.1x (healthy)
+- CapEx commitments: $200M expansion (funded)
+
+### Key Assumptions Flagged
+- [ASSUMPTION] China export restrictions continue
+- [ASSUMPTION] EV adoption rate per IEA forecasts
+```
+
+**08 Technical Analyst Output:**
+```markdown
+## MP Materials (MP) - Technical Analysis
+
+### Trend Assessment
+- Primary trend: UPTREND (above 200 DMA)
+- Secondary trend: Consolidation (40-day range)
+
+### Key Levels
+| Level | Price | Significance |
+|-------|-------|--------------|
+| Resistance 1 | $28.50 | 52-week high |
+| Resistance 2 | $32.00 | 2022 high |
+| Support 1 | $21.80 | 50 DMA |
+| Support 2 | $18.50 | 200 DMA |
+
+### Momentum Indicators
+- RSI (14): 54 (neutral)
+- MACD: Bullish crossover 3 days ago
+- Volume: Below average, awaiting catalyst
+
+### Entry/Exit Zones
+- Accumulation zone: $20-22
+- Take profit zone: $28-30
+- Stop loss: Below $18 (break of 200 DMA)
+```
+
+### 1.5 Key Design Principles
 
 1. **Separation of Concerns:** Reasoning agents decide *what matters*; skills generate *truthful artifacts*; reporting tells *coherent stories from verified outputs*
 2. **Auditability:** Every decision has a traceable provenance chain with hashes and timestamps
@@ -225,14 +381,29 @@ FALLBACK_TRIGGERS = [
 
 Start with best-performing configuration, optimize for cost later based on token usage data.
 
+**Strategic Reasoning Agents:**
+
 | Agent | Model | Thinking Mode | Max Thinking Tokens | Rationale |
 |-------|-------|---------------|---------------------|-----------|
-| **Orchestrator** | Opus 4.5 | Extended | 10,000 | Synthesis across 5 agents, conflict resolution, planning |
+| **Orchestrator** | Opus 4.5 | Extended | 10,000 | Synthesis across 8 agents, conflict resolution, planning |
 | **01 Systems** | Opus 4.5 | Extended | 8,000 | Second-order effects require deep reasoning chains |
 | **02 Inversion** | Opus 4.5 | Extended | 8,000 | Must find non-obvious failure modes |
 | **03 Allocator** | Sonnet 4 | Standard | — | More structured/quantitative analysis |
 | **04 Incentives** | Sonnet 4 | Standard | — | Pattern matching, less novel reasoning |
 | **05 Epistemic** | Opus 4.5 | Extended | 10,000 | Meta-reasoning, catching what others missed |
+
+**Equity Research Agents:**
+
+| Agent | Model | Thinking Mode | Max Thinking Tokens | Rationale |
+|-------|-------|---------------|---------------------|-----------|
+| **06 Screener** | Sonnet 4 | Standard | — | Structured search, universe building |
+| **07 Fundamental** | Opus 4.5 | Extended | 8,000 | Complex valuation reasoning, connecting financial dots |
+| **08 Technical** | Sonnet 4 | Standard | — | Pattern recognition, rule-based analysis |
+
+**Support Agents:**
+
+| Agent | Model | Thinking Mode | Max Thinking Tokens | Rationale |
+|-------|-------|---------------|---------------------|-----------|
 | **Reporting** | Sonnet 4 | Standard | — | Summarization and formatting |
 
 #### 2.6.3 Extended Thinking Rationale
@@ -269,11 +440,13 @@ class AgentModelConfig(BaseModel):
     max_output_tokens: int = 4096
 
 AGENT_MODEL_CONFIG: dict[str, AgentModelConfig] = {
+    # Orchestrator
     "orchestrator": AgentModelConfig(
         model="claude-opus-4-5-20250514",
         thinking=ThinkingMode.EXTENDED,
         max_thinking_tokens=10000,
     ),
+    # Strategic Reasoning Agents (01-04)
     "01_systems": AgentModelConfig(
         model="claude-opus-4-5-20250514",
         thinking=ThinkingMode.EXTENDED,
@@ -292,11 +465,27 @@ AGENT_MODEL_CONFIG: dict[str, AgentModelConfig] = {
         model="claude-sonnet-4-20250514",
         thinking=ThinkingMode.STANDARD,
     ),
+    # Meta Agent (05)
     "05_epistemic": AgentModelConfig(
         model="claude-opus-4-5-20250514",
         thinking=ThinkingMode.EXTENDED,
         max_thinking_tokens=10000,
     ),
+    # Equity Research Agents (06-08)
+    "06_screener": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+    "07_fundamental": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=8000,
+    ),
+    "08_technical": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+    # Support Agent
     "reporting": AgentModelConfig(
         model="claude-sonnet-4-20250514",
         thinking=ThinkingMode.STANDARD,
@@ -473,27 +662,111 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 - [ ] Basic plotting skills (stubs)
 - [ ] Notebook: `05_phase2_skills_and_report.ipynb`
 
-#### Phase 2B: Testing & Quality Gates
+#### Phase 2B: Equity Research Agents
 **Dependencies:** Phase 2A
+
+**Deliverables:**
+- [ ] 06 Sector Screener agent charter and integration
+- [ ] 07 Fundamental Analyst agent charter and integration
+- [ ] 08 Technical Analyst agent charter and integration
+- [ ] Equity research workflow in orchestrator
+- [ ] Per-ticker iteration logic in pipeline
+- [ ] Notebook: `07_phase2_equity_research.ipynb`
+
+**Validation Checkpoint:**
+```bash
+python -m runner.run --task inputs/example_tasks/rare_earth_diligence.md
+# Verify: 06_screener.md identifies relevant tickers
+# Verify: 07_fundamental.md and 08_technical.md generated per shortlisted ticker
+# Verify: Final memo includes ranked ticker recommendations
+```
+
+#### Phase 2C: Testing & Quality Gates
+**Dependencies:** Phase 2B
 
 **Deliverables:**
 - [ ] `test_state_schema.py`
 - [ ] `test_prompt_hashing.py`
 - [ ] `test_duckdb_schema.py`
 - [ ] `test_pipeline_smoke.py`
+- [ ] `test_equity_workflow.py`
 - [ ] `--dry-run` validation mode
-- [ ] Notebook: `06_phase2_regression_tests.ipynb`
+- [ ] Notebook: `08_phase2_regression_tests.ipynb`
 
 ---
 
-### Phase 3: Production Readiness (Future)
+### Phase 3: Market Data Integration
 
-- [ ] Advanced plotting skills
+#### Phase 3A: Market Data Skills
+**Dependencies:** Phase 2C
+
+**Deliverables:**
+- [ ] `skills/market_data.py` - API wrapper for market data
+- [ ] Yahoo Finance integration (free tier)
+- [ ] Alpha Vantage integration (optional, API key)
+- [ ] Quote fetching: price, volume, market cap
+- [ ] Fundamentals fetching: P/E, EV/EBITDA, revenue, earnings
+- [ ] Historical price data for technical analysis
+- [ ] Rate limiting and caching
+
+**Market Data Skill Interface:**
+```python
+# skills/market_data.py
+from typing import Optional
+from pydantic import BaseModel
+
+class QuoteData(BaseModel):
+    ticker: str
+    price: float
+    market_cap: Optional[float]
+    pe_ratio: Optional[float]
+    volume: int
+    timestamp: str
+
+class FundamentalsData(BaseModel):
+    ticker: str
+    revenue_ttm: Optional[float]
+    net_income_ttm: Optional[float]
+    eps_ttm: Optional[float]
+    pe_ratio: Optional[float]
+    ev_ebitda: Optional[float]
+    debt_to_equity: Optional[float]
+    current_ratio: Optional[float]
+
+async def get_quote(ticker: str) -> QuoteData:
+    """Fetch current quote data for a ticker."""
+    ...
+
+async def get_fundamentals(ticker: str) -> FundamentalsData:
+    """Fetch fundamental data for a ticker."""
+    ...
+
+async def get_price_history(ticker: str, period: str = "1y") -> pd.DataFrame:
+    """Fetch historical price data for technical analysis."""
+    ...
+```
+
+#### Phase 3B: Enhanced Equity Agents
+**Dependencies:** Phase 3A
+
+**Deliverables:**
+- [ ] Fundamental Analyst uses live data via skills
+- [ ] Technical Analyst uses price history for real chart analysis
+- [ ] Screener can validate tickers exist and get basic data
+- [ ] Data provenance tracking (source, timestamp)
+- [ ] Graceful fallback when data unavailable
+
+---
+
+### Phase 4: Production Readiness (Future)
+
+- [ ] Advanced plotting skills (generate actual charts)
 - [ ] File/folder ingestion for Reference Materials
 - [ ] Trading desk integration hooks
 - [ ] Web interface
 - [ ] Multi-tenant support
 - [ ] Advanced caching
+- [ ] SEC filing ingestion (10-K, 10-Q parsing)
 
 ---
 
@@ -693,14 +966,19 @@ charters/
     ├── 02_inversion.md
     ├── 03_allocator.md
     ├── 04_incentives_timing.md
-    └── 05_epistemic.md
+    ├── 05_epistemic.md
+    ├── 06_screener.md         # Equity: ticker identification
+    ├── 07_fundamental.md      # Equity: valuation & financials
+    └── 08_technical.md        # Equity: chart & momentum analysis
 
 skills/
 ├── __init__.py
 ├── extractors.py      # Output parsing
 ├── scoring.py         # Confidence scoring
 ├── memo_builder.py    # Report assembly
-└── conflicts.py       # Conflict detection
+├── conflicts.py       # Conflict detection
+├── market_data.py     # Market data API calls (Phase 2)
+└── financials.py      # Financial data parsing (Phase 2)
 
 tests/
 ├── test_state_schema.py
@@ -760,7 +1038,7 @@ python -m runner.run --task inputs/task.md --provider openai --model gpt-4o   # 
 
 ### Phase 1 Complete When:
 1. Full pipeline executes end-to-end with example task
-2. All 7 agents produce valid outputs
+2. Strategic agents (01-05) produce valid outputs
 3. Final memo follows template structure
 4. All database tables populated correctly
 5. Run folder contains complete artifacts
@@ -769,15 +1047,23 @@ python -m runner.run --task inputs/task.md --provider openai --model gpt-4o   # 
 ### Phase 2 Complete When:
 1. All tests pass
 2. Skills layer extracts structured data
-3. Conflicts detected and tracked
-4. `--dry-run` validates plan
-5. Error handling covers all categories
+3. Equity research agents (06-08) integrated
+4. Per-ticker deep-dive workflow functional
+5. Conflicts detected and tracked
+6. `--dry-run` validates plan
+7. Error handling covers all categories
+
+### Phase 3 Complete When:
+1. Market data skills fetch live quotes and fundamentals
+2. Equity agents use real data when available
+3. Graceful fallback when data unavailable
+4. Data provenance tracked in artifacts
 
 ---
 
 ## 9. Known Limitations
 
-1. **No Real-Time Data:** Agents reason from input only; no live market data
+1. **No Real-Time Data (Phase 1-2):** Agents reason from input only; no live market data until Phase 3
 2. **No Web Browsing:** Explicit constraint; agents flag assumptions
 3. **English Only:** No multi-language support in Phase 1-2
 4. **Single User:** No authentication or multi-tenancy
@@ -839,17 +1125,68 @@ medium
 - Competitive dynamics in 800G/1.6T transceivers
 ```
 
+### Example 2: Equity Research Task (Rare Earth Minerals)
+
+```markdown
+# Rare Earth Minerals Investment Diligence
+
+## One-Line Ask
+Identify 2-4 public companies with meaningful exposure to rare earth minerals
+and critical materials for the energy transition, with full fundamental and
+technical analysis.
+
+## Objective
+invest
+
+## Time Horizon
+6-18 months
+
+## Constraints
+- Public companies only (US-listed preferred)
+- Include both pure-play and diversified exposure
+- Perform fundamental analysis on shortlisted tickers
+- Perform technical analysis with entry/exit levels
+- Flag all assumptions, especially around China policy
+
+## Background / Context
+Rare earth elements are critical for EV motors, wind turbines, and defense
+applications. Supply is concentrated in China (~60% of mining, ~90% of
+processing). Western governments are incentivizing domestic production.
+
+## Prior Hypotheses
+- MP Materials (MP) is the only US-based rare earth miner
+- Lynas (LTHM) has non-China processing capacity
+- Lithium names (ALB, LTHM, SQM) may have rare earth adjacency
+- Vertical integration risk from automakers
+
+## Risk Appetite
+medium-high
+
+## Analysis Requirements
+- Sector screening: Identify all relevant tickers
+- Fundamental: P/E, EV/EBITDA, balance sheet, earnings quality
+- Technical: Trend, support/resistance, entry zones
+- Risks: China policy, commodity price sensitivity, CapEx execution
+
+## Known Unknowns
+- Actual rare earth demand growth rates
+- DOE/DOD subsidy timelines
+- China export restriction probability
+- Processing capacity expansion timelines
+```
+
 ---
 
 ## 12. Changelog
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | 2026-02-03 | Added Equity Research Agents (06-08): Sector Screener, Fundamental Analyst, Technical Analyst. New equity research workflow with per-ticker deep-dive. Phase 2B for equity agents, Phase 3 for market data integration. Updated architecture diagram, model tiering, and file structure. |
 | 1.1 | 2026-02-03 | Added LLM Provider & Model Strategy (Section 2.6): Claude-first approach, per-agent model tiering, extended thinking configuration, environment overrides, cost optimization path |
 | 1.0 | 2026-02-03 | Initial final plan with improvements and recommendations |
 
 ---
 
-*Document Version: 1.1*
+*Document Version: 1.2*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
