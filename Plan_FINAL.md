@@ -240,7 +240,300 @@ When tasks involve stock/investment analysis, the system follows a specialized w
 - Stop loss: Below $18 (break of 200 DMA)
 ```
 
-### 1.5 Key Design Principles
+### 1.5 Chain-of-Verification (CoVe) Module
+
+The CoVe module is an **on-demand verification pipeline** triggered by the Orchestrator to reduce hallucinations and confirmation bias in high-stakes outputs. It enforces separation between generation and verification.
+
+#### When CoVe is Triggered
+
+The Orchestrator activates CoVe when:
+
+| Trigger Condition | Example |
+|-------------------|---------|
+| **Numerical claims** | Valuation figures, P/E ratios, price targets |
+| **Investment recommendations** | "Buy MP at $20-22" |
+| **Factual assertions** | "MP is the only US rare earth miner" |
+| **High confidence statements** | Claims without hedging language |
+| **Final memo generation** | Before Reporting Agent produces output |
+| **User requests verification** | Explicit ask for fact-checking |
+
+#### CoVe Agent Roles
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    CoVe MODULE FLOW                             │
+│                  (Triggered by Orchestrator)                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AGENT A: GENERATOR (Source Agent)                  │
+│                                                                 │
+│  Input: Original agent output (e.g., 07_fundamental)            │
+│  Output:                                                        │
+│    - Draft Answer (concise)                                     │
+│    - Atomic Claims List (checkable statements)                  │
+│    - Assumptions (explicit)                                     │
+│    - Known Unknowns                                             │
+│                                                                 │
+│  Rule: No self-verification                                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AGENT B: SKEPTIC (Verification Planner)            │
+│                                                                 │
+│  Input: Atomic claims list from Agent A                         │
+│  Output: 3-7 Verification Questions (VQs)                       │
+│                                                                 │
+│  VQ Design Rules:                                               │
+│    - 1 VQ checks core conclusion                                │
+│    - 1 VQ checks key numbers/thresholds                         │
+│    - 1 VQ checks counterexamples/edge cases                     │
+│    - 1 VQ checks missing assumptions                            │
+│                                                                 │
+│  Each VQ includes:                                              │
+│    - Target claim(s)                                            │
+│    - What would falsify it                                      │
+│    - What evidence would support it                             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AGENT C: INDEPENDENT VERIFIER                      │
+│                                                                 │
+│  Input: Atomic claims + VQs (NOT the draft answer)              │
+│                                                                 │
+│  CRITICAL CONSTRAINTS:                                          │
+│    - Cannot read Agent A's draft answer                         │
+│    - Cannot defend the draft                                    │
+│    - Must start from first principles                           │
+│    - Can use web search / market data skills                    │
+│    - If no evidence: mark as "Unverified"                       │
+│                                                                 │
+│  Output per VQ:                                                 │
+│    - Verdict: Supported / Contradicted / Unverified / Unclear   │
+│    - Reasoning: short, factual                                  │
+│    - Correction: if contradicted                                │
+│    - Confidence: High / Medium / Low                            │
+│    - Dependencies: what else must be true                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AGENT D: EDITOR (Finalizer)                        │
+│                                                                 │
+│  Input: Draft + Verification Results                            │
+│                                                                 │
+│  Rules:                                                         │
+│    - Remove or weaken Contradicted claims                       │
+│    - Hedge Unverified claims with caveats                       │
+│    - Preserve Supported claims                                  │
+│    - Add "Unclear" items as open questions                      │
+│                                                                 │
+│  Output:                                                        │
+│    - Final Verified Answer                                      │
+│    - Caveats / Conditions                                       │
+│    - Open Questions (if blockers remain)                        │
+│    - Verification Summary (what changed)                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### CoVe Output Schema
+
+```python
+# runner/cove.py
+from pydantic import BaseModel
+from typing import List, Optional
+from enum import Enum
+
+class ClaimType(str, Enum):
+    CORE = "core"           # Must be verified to ship
+    SUPPORTING = "supporting"  # Should be verified
+    COSMETIC = "cosmetic"   # Nice to verify
+
+class Verdict(str, Enum):
+    SUPPORTED = "supported"
+    CONTRADICTED = "contradicted"
+    UNVERIFIED = "unverified"
+    UNCLEAR = "unclear"
+
+class Confidence(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+class AtomicClaim(BaseModel):
+    claim_id: str
+    statement: str
+    claim_type: ClaimType
+    source_agent: str
+    source_section: Optional[str]
+
+class VerificationQuestion(BaseModel):
+    vq_id: str
+    target_claims: List[str]  # claim_ids
+    question: str
+    falsifier: str  # What would prove this wrong
+    supporting_evidence: str  # What would confirm this
+
+class VerificationResult(BaseModel):
+    vq_id: str
+    verdict: Verdict
+    reasoning: str
+    correction: Optional[str]
+    confidence: Confidence
+    dependencies: List[str]
+    sources_checked: List[str]  # URLs, data sources consulted
+
+class CoVeOutput(BaseModel):
+    run_id: str
+    source_agent: str
+    draft_answer: str
+    atomic_claims: List[AtomicClaim]
+    verification_questions: List[VerificationQuestion]
+    verification_results: List[VerificationResult]
+    final_answer: str
+    caveats: List[str]
+    open_questions: List[str]
+    verification_summary: str
+```
+
+#### CoVe Stop Conditions
+
+| Condition | Action |
+|-----------|--------|
+| Any **core** claim is `Contradicted` | **Must revise** - cannot ship |
+| ≥2 **core** claims are `Unverified` | **Must qualify** or request clarification |
+| All **core** claims are `Supported` | **Ship** final answer |
+| **Supporting** claims contradicted | Revise or remove, but can still ship |
+
+#### Integration with Existing Agents
+
+CoVe wraps around existing agent outputs:
+
+```python
+# runner/pipeline.py
+async def run_agent_with_cove(
+    agent_name: str,
+    agent_output: str,
+    cove_trigger: bool = False
+) -> str:
+    """Optionally run CoVe on agent output."""
+
+    if not cove_trigger:
+        return agent_output
+
+    # Step 1: Extract atomic claims
+    claims = await cove_generator.extract_claims(agent_output)
+
+    # Step 2: Generate verification questions
+    vqs = await cove_skeptic.generate_vqs(claims)
+
+    # Step 3: Independent verification (can use web search, market data)
+    results = await cove_verifier.verify(claims, vqs)
+
+    # Step 4: Edit and finalize
+    final = await cove_editor.finalize(agent_output, results)
+
+    # Store CoVe artifacts
+    save_cove_artifacts(run_id, agent_name, claims, vqs, results, final)
+
+    return final.final_answer
+```
+
+#### Example: CoVe on Fundamental Analyst Output
+
+**Input (07_fundamental claim):**
+> "MP Materials trades at P/E of 28.4x vs sector average of 22.1x"
+
+**Agent A (Generator) - Atomic Claims:**
+```markdown
+1. [CORE] MP Materials current P/E is 28.4x
+2. [CORE] Rare earth sector average P/E is 22.1x
+3. [SUPPORTING] MP trades at a premium to sector
+```
+
+**Agent B (Skeptic) - Verification Questions:**
+```markdown
+VQ1: What is MP's actual trailing P/E ratio as of today?
+     Falsifier: P/E is significantly different from 28.4x
+     Evidence: Quote from Polygon/yfinance
+
+VQ2: What is the actual sector average P/E?
+     Falsifier: Sector avg differs from 22.1x by >10%
+     Evidence: Peer comparison data
+
+VQ3: Are there valid reasons MP should trade at premium/discount?
+     Falsifier: MP has structural issues justifying discount
+     Evidence: Recent earnings, guidance, competitive position
+```
+
+**Agent C (Verifier) - Results:**
+```markdown
+VQ1: SUPPORTED (High confidence)
+     Polygon API returns P/E of 27.9x (within 2%)
+
+VQ2: UNVERIFIED (Medium confidence)
+     Cannot find consistent "rare earth sector" definition
+     Peers vary: LTHM 18x, ALB 12x, no clear avg
+
+VQ3: SUPPORTED (Medium confidence)
+     Only integrated US producer, strategic value premium
+```
+
+**Agent D (Editor) - Final Output:**
+```markdown
+MP Materials trades at P/E of ~28x. Direct sector comparison is
+difficult due to peer heterogeneity (lithium-focused peers trade
+at 12-18x), but MP's premium may be justified by its position as
+the only integrated US rare earth producer.
+
+Caveat: "Sector average" claim removed - peer set is not well-defined.
+```
+
+#### Model Configuration for CoVe Agents
+
+| CoVe Agent | Model | Thinking Mode | Rationale |
+|------------|-------|---------------|-----------|
+| **Generator** | Sonnet 4 | Standard | Extraction task, structured output |
+| **Skeptic** | Opus 4.5 | Extended | Must find non-obvious failure modes |
+| **Verifier** | Opus 4.5 | Extended | Independent reasoning, can use skills |
+| **Editor** | Sonnet 4 | Standard | Synthesis and formatting |
+
+#### Database Schema for CoVe
+
+```sql
+-- Track CoVe verification runs
+CREATE TABLE IF NOT EXISTS cove_runs (
+    cove_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    source_agent TEXT NOT NULL,
+    trigger_reason TEXT,
+    claims_total INTEGER,
+    claims_core INTEGER,
+    claims_supported INTEGER,
+    claims_contradicted INTEGER,
+    claims_unverified INTEGER,
+    verdict TEXT,  -- 'shipped', 'revised', 'blocked'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Track individual claim verifications
+CREATE TABLE IF NOT EXISTS cove_claims (
+    claim_id TEXT PRIMARY KEY,
+    cove_id TEXT NOT NULL,
+    statement TEXT,
+    claim_type TEXT,
+    verdict TEXT,
+    confidence TEXT,
+    correction TEXT,
+    sources_checked TEXT,  -- JSON array
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 1.6 Key Design Principles
 
 1. **Separation of Concerns:** Reasoning agents decide *what matters*; skills generate *truthful artifacts*; reporting tells *coherent stories from verified outputs*
 2. **Auditability:** Every decision has a traceable provenance chain with hashes and timestamps
@@ -490,6 +783,25 @@ AGENT_MODEL_CONFIG: dict[str, AgentModelConfig] = {
         model="claude-sonnet-4-20250514",
         thinking=ThinkingMode.STANDARD,
     ),
+    # CoVe Agents (Phase 2C)
+    "cove_generator": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
+    "cove_skeptic": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=6000,
+    ),
+    "cove_verifier": AgentModelConfig(
+        model="claude-opus-4-5-20250514",
+        thinking=ThinkingMode.EXTENDED,
+        max_thinking_tokens=8000,
+    ),
+    "cove_editor": AgentModelConfig(
+        model="claude-sonnet-4-20250514",
+        thinking=ThinkingMode.STANDARD,
+    ),
 }
 
 # Fallback configuration for all agents
@@ -681,8 +993,43 @@ python -m runner.run --task inputs/example_tasks/rare_earth_diligence.md
 # Verify: Final memo includes ranked ticker recommendations
 ```
 
-#### Phase 2C: Testing & Quality Gates
+#### Phase 2C: Chain-of-Verification (CoVe) Module
 **Dependencies:** Phase 2B
+
+**Deliverables:**
+- [ ] `runner/cove.py` - CoVe orchestration logic
+- [ ] CoVe Generator agent (claim extraction)
+- [ ] CoVe Skeptic agent (verification question generation)
+- [ ] CoVe Verifier agent (independent verification)
+- [ ] CoVe Editor agent (revision and finalization)
+- [ ] CoVe trigger logic in Orchestrator
+- [ ] CoVe database schema (cove_runs, cove_claims tables)
+- [ ] Integration with web search and market data skills
+- [ ] Notebook: `08_phase2_cove_module.ipynb`
+
+**Validation Checkpoint:**
+```bash
+python -m runner.run --task inputs/example_tasks/rare_earth_diligence.md --enable-cove
+# Verify: CoVe runs on 07_fundamental output
+# Verify: Atomic claims extracted
+# Verify: Verification questions generated
+# Verify: Independent verification with sources
+# Verify: Final output has caveats for unverified claims
+# Verify: cove_runs and cove_claims tables populated
+```
+
+**CoVe Charter Files:**
+```
+charters/
+└── cove/
+    ├── generator.md      # Claim extraction prompt
+    ├── skeptic.md        # VQ generation prompt
+    ├── verifier.md       # Independent verification prompt
+    └── editor.md         # Revision prompt
+```
+
+#### Phase 2D: Testing & Quality Gates
+**Dependencies:** Phase 2C
 
 **Deliverables:**
 - [ ] `test_state_schema.py`
@@ -1396,6 +1743,23 @@ charters/
     ├── 06_screener.md         # Equity: ticker identification
     ├── 07_fundamental.md      # Equity: valuation & financials
     └── 08_technical.md        # Equity: chart & momentum analysis
+│
+└── cove/                      # Chain-of-Verification (Phase 2C)
+    ├── generator.md           # Claim extraction
+    ├── skeptic.md             # Verification question generation
+    ├── verifier.md            # Independent verification
+    └── editor.md              # Revision and finalization
+
+runner/
+├── __init__.py
+├── run.py             # CLI entrypoint
+├── pipeline.py        # Pipeline orchestration
+├── state.py           # State schema (Pydantic)
+├── artifacts.py       # Artifact management
+├── db.py              # DuckDB operations
+├── llm.py             # Provider abstraction
+├── utils.py           # Utilities, hashing
+└── cove.py            # CoVe module orchestration (Phase 2C)
 
 skills/
 ├── __init__.py
@@ -1661,6 +2025,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.6 | 2026-02-03 | Added Chain-of-Verification (CoVe) module (Section 1.5): Generator/Skeptic/Verifier/Editor agents for claim verification. CoVe trigger conditions, stop conditions, and integration with existing pipeline. Phase 2C for CoVe implementation. Database schema for verification tracking. Model config for CoVe agents. |
 | 1.5 | 2026-02-03 | Added Serper.dev as secondary search provider (fast, cost-effective Google Search). Updated provider priority: Brave → Serper → SerpAPI. Added SerperClient implementation. |
 | 1.4 | 2026-02-03 | Added Phase 3C Web Research Skills: Brave Search (primary), SerpAPI (fallback) integrations. Web/news search for all agents. Use cases per agent type. Updated file structure and environment variables. |
 | 1.3 | 2026-02-03 | Enhanced Phase 3 Market Data: Added Polygon.io (primary), Schwab API (secondary), yfinance (fallback) integrations. Detailed provider config, data models, and client implementations. Added environment variables section. |
@@ -1670,6 +2035,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.5*
+*Document Version: 1.6*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
