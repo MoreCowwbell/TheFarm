@@ -1966,6 +1966,878 @@ AGENT_MODEL_CONFIG["intake"] = AgentModelConfig(
 4. **No Hallucinated Evidence:** Agents cannot invent figures, data, or citations
 5. **Graceful Degradation:** System runs with minimal input; assumptions are explicit and confidence-tagged
 
+### 1.9 Orchestrator Charter
+
+The Orchestrator is the central coordinator of the pipeline. This charter defines its decision-making logic, agent selection criteria, and synthesis responsibilities.
+
+#### 1.9.1 Orchestrator Responsibilities
+
+```markdown
+## Charter: Orchestrator Agent
+
+You are the Orchestrator for deepmind1. You coordinate the multi-agent analysis
+pipeline, making decisions about which agents to invoke, how to resolve conflicts,
+and when to iterate for deeper analysis.
+
+### Core Responsibilities
+
+1. **Input Normalization** - Parse enriched TaskInput from Intake
+2. **Agent Selection** - Choose relevant agents based on objective type
+3. **Parallel Dispatch** - Send task context to selected agents
+4. **Synthesis** - Aggregate and reconcile agent outputs
+5. **Conflict Resolution** - Resolve disagreements between agents
+6. **Sequential Planning** - Plan deep-dives based on initial findings
+7. **Iteration Control** - Decide when to iterate vs terminate
+8. **CoVe Triggering** - Determine when verification is needed
+9. **Reporting Handoff** - Prepare synthesized context for Reporting agent
+
+### Decision Framework
+
+You must make decisions at each pipeline stage. Document your reasoning.
+```
+
+#### 1.9.2 Agent Selection Logic
+
+The Orchestrator selects agents based on objective type and task requirements:
+
+```python
+# runner/orchestrator.py
+from typing import List, Set
+from enum import Enum
+
+class AgentCategory(str, Enum):
+    STRATEGIC = "strategic"      # 01-04
+    EQUITY = "equity"            # 06-08
+    META = "meta"                # 05
+    COVE = "cove"                # CoVe agents
+
+# Agent Selection Matrix by Objective
+AGENT_SELECTION_MATRIX = {
+    "invest": {
+        "required": ["01_systems", "02_inversion", "03_allocator", "05_epistemic"],
+        "conditional": {
+            "06_screener": "if task mentions stocks/tickers/equity",
+            "07_fundamental": "if screener returns tickers",
+            "08_technical": "if screener returns tickers",
+            "04_incentives": "if stakeholder dynamics mentioned",
+        },
+        "skip": [],
+    },
+    "build": {
+        "required": ["01_systems", "02_inversion", "05_epistemic"],
+        "conditional": {
+            "04_incentives": "if stakeholders/politics mentioned",
+        },
+        "skip": ["03_allocator", "06_screener", "07_fundamental", "08_technical"],
+    },
+    "explore": {
+        "required": ["01_systems", "05_epistemic"],
+        "conditional": {
+            "02_inversion": "if risks/downsides requested",
+            "04_incentives": "if stakeholders mentioned",
+        },
+        "skip": ["03_allocator", "06_screener", "07_fundamental", "08_technical"],
+    },
+    "decide": {
+        "required": ["01_systems", "02_inversion", "03_allocator", "05_epistemic"],
+        "conditional": {
+            "04_incentives": "always for decisions",
+        },
+        "skip": ["06_screener", "07_fundamental", "08_technical"],
+    },
+    "invent": {
+        "required": ["01_systems", "02_inversion", "05_epistemic"],
+        "conditional": {
+            "04_incentives": "if market dynamics relevant",
+        },
+        "skip": ["03_allocator", "06_screener", "07_fundamental", "08_technical"],
+    },
+}
+
+def select_agents(objective: str, task_input: dict) -> List[str]:
+    """Select agents based on objective and task content."""
+    matrix = AGENT_SELECTION_MATRIX.get(objective, AGENT_SELECTION_MATRIX["explore"])
+
+    agents = list(matrix["required"])
+
+    # Evaluate conditional agents
+    task_text = str(task_input).lower()
+    for agent, condition in matrix["conditional"].items():
+        if evaluate_condition(condition, task_text, task_input):
+            agents.append(agent)
+
+    return agents
+
+def evaluate_condition(condition: str, task_text: str, task_input: dict) -> bool:
+    """Evaluate whether a conditional agent should be included."""
+    if "stocks" in condition and any(kw in task_text for kw in ["stock", "ticker", "equity", "company"]):
+        return True
+    if "screener returns" in condition:
+        # Check if screener has already run and returned tickers
+        return task_input.get("_screener_tickers", []) != []
+    if "stakeholder" in condition and "stakeholder" in task_text:
+        return True
+    if "always" in condition:
+        return True
+    return False
+```
+
+#### 1.9.3 Orchestrator Synthesis Protocol
+
+After parallel pass, the Orchestrator must synthesize agent outputs:
+
+```markdown
+### Synthesis Steps
+
+1. **Collect Outputs** - Gather all agent markdown outputs
+2. **Extract Key Findings** - Identify main conclusions per agent
+3. **Detect Conflicts** - Find contradictions between agents
+4. **Prioritize Findings** - Rank by confidence and relevance
+5. **Plan Deep-Dives** - Identify areas needing more analysis
+6. **Update State** - Populate PipelineState with findings
+
+### Synthesis Output Format
+
+```yaml
+synthesis:
+  key_findings:
+    - finding: "Core thesis from Systems analysis"
+      source: "01_systems"
+      confidence: "high"
+    - finding: "Key risk from Inversion"
+      source: "02_inversion"
+      confidence: "medium"
+
+  conflicts:
+    - topic: "Valuation premium justified?"
+      positions:
+        03_allocator: "Premium too high, wait for pullback"
+        07_fundamental: "Premium justified by growth"
+      resolution_needed: true
+
+  deep_dive_plan:
+    - action: "Per-ticker fundamental analysis"
+      tickers: ["MP", "LTHM", "ALB"]
+      agents: ["07_fundamental", "08_technical"]
+    - action: "Stress test China scenario"
+      agents: ["02_inversion"]
+
+  open_questions:
+    - question: "What's the timeline for DOE subsidies?"
+      owner: "01_systems"
+      priority: "high"
+
+  cove_triggers:
+    - agent: "07_fundamental"
+      reason: "Numerical claims about P/E ratios"
+```
+```
+
+#### 1.9.4 Iteration Control Logic
+
+```python
+# runner/orchestrator.py
+class IterationDecision(BaseModel):
+    should_iterate: bool
+    reason: str
+    focus_areas: List[str]
+    max_iterations_remaining: int
+
+def decide_iteration(
+    state: PipelineState,
+    synthesis: dict,
+    current_iteration: int,
+    max_iterations: int = 2
+) -> IterationDecision:
+    """Decide whether to run another iteration."""
+
+    # Stop conditions
+    if current_iteration >= max_iterations:
+        return IterationDecision(
+            should_iterate=False,
+            reason="Max iterations reached",
+            focus_areas=[],
+            max_iterations_remaining=0,
+        )
+
+    # Check for unresolved critical conflicts
+    critical_conflicts = [c for c in synthesis.get("conflicts", [])
+                         if c.get("resolution_needed")]
+
+    # Check for high-priority open questions
+    critical_questions = [q for q in synthesis.get("open_questions", [])
+                         if q.get("priority") == "high"]
+
+    # Check for CoVe failures
+    cove_failures = [r for r in state.cove_results
+                    if r.verdict == "contradicted" and r.claim_type == "core"]
+
+    should_iterate = bool(critical_conflicts or critical_questions or cove_failures)
+
+    return IterationDecision(
+        should_iterate=should_iterate,
+        reason=_build_iteration_reason(critical_conflicts, critical_questions, cove_failures),
+        focus_areas=_identify_focus_areas(synthesis),
+        max_iterations_remaining=max_iterations - current_iteration - 1,
+    )
+```
+
+#### 1.9.5 CoVe Trigger Decision
+
+```python
+# runner/orchestrator.py
+COVE_TRIGGER_RULES = {
+    "01_systems": {
+        "auto_trigger": False,
+        "conditions": ["explicit user request"],
+    },
+    "02_inversion": {
+        "auto_trigger": True,
+        "conditions": ["kill criteria assertions", "probability claims"],
+    },
+    "03_allocator": {
+        "auto_trigger": True,
+        "conditions": ["numerical thresholds", "return expectations"],
+    },
+    "04_incentives": {
+        "auto_trigger": False,
+        "conditions": ["explicit user request"],
+    },
+    "05_epistemic": {
+        "auto_trigger": False,  # Meta-agent, self-verifying
+        "conditions": [],
+    },
+    "06_screener": {
+        "auto_trigger": False,  # Outputs lists, not claims
+        "conditions": [],
+    },
+    "07_fundamental": {
+        "auto_trigger": True,
+        "conditions": ["valuation figures", "financial ratios", "price targets"],
+    },
+    "08_technical": {
+        "auto_trigger": False,  # Levels derived from data
+        "conditions": ["explicit user request"],
+    },
+    "reporting": {
+        "auto_trigger": True,  # Always verify before shipping
+        "conditions": ["final report generation"],
+    },
+}
+
+def should_trigger_cove(agent_name: str, output: str) -> bool:
+    """Determine if CoVe should run on agent output."""
+    rules = COVE_TRIGGER_RULES.get(agent_name, {"auto_trigger": False})
+
+    if not rules["auto_trigger"]:
+        return False
+
+    # Check for trigger conditions in output
+    conditions = rules.get("conditions", [])
+    output_lower = output.lower()
+
+    for condition in conditions:
+        if "numerical" in condition and _has_numerical_claims(output):
+            return True
+        if "valuation" in condition and any(kw in output_lower for kw in ["p/e", "ev/ebitda", "dcf", "valuation"]):
+            return True
+        if "kill criteria" in condition and "kill" in output_lower:
+            return True
+        if "final report" in condition:
+            return True
+
+    return False
+```
+
+#### 1.9.6 Stop Conditions
+
+The Orchestrator stops the pipeline when:
+
+| Condition | Action | Reason |
+|-----------|--------|--------|
+| Max iterations reached | Stop, generate report | Resource limit |
+| All open questions resolved | Stop, generate report | Analysis complete |
+| No conflicts remaining | Stop, generate report | Consensus achieved |
+| CoVe core claim contradicted (unresolvable) | Stop with warning | Cannot ship invalid claims |
+| Budget exceeded | Stop with partial report | Cost limit |
+| User cancellation | Stop immediately | User request |
+
+### 1.10 Agent Data Contracts
+
+Each agent has a defined input/output contract to ensure chain of custody.
+
+#### 1.10.1 Universal Agent Input
+
+All agents receive a standardized context package:
+
+```python
+# schemas/agent_input.py
+from pydantic import BaseModel
+from typing import List, Dict, Optional, Any
+
+class AgentContext(BaseModel):
+    """Universal input context for all agents."""
+
+    # Task Context
+    run_id: str
+    task_title: str
+    one_line_ask: str
+    objective: str
+    time_horizon: str
+    constraints: List[str]
+    background_context: Optional[str]
+    prior_hypotheses: Optional[str]
+
+    # User Preferences
+    risk_appetite: Optional[str]
+    kill_criteria: List[str]
+    specific_questions: List[str]
+
+    # Pipeline Context
+    iteration_number: int
+    previous_agent_outputs: Dict[str, str]  # agent_name -> summary
+    orchestrator_guidance: Optional[str]     # Specific instructions for this call
+
+    # Data Context (populated by skills before agent call)
+    market_data: Optional[Dict[str, Any]]    # If equity analysis
+    web_search_results: Optional[List[Dict]] # If web search ran
+    reference_materials: Optional[str]       # Parsed reference docs
+
+    # State Context
+    current_candidates: List[Dict]
+    current_assumptions: List[Dict]
+    current_conflicts: List[Dict]
+    open_questions: List[Dict]
+```
+
+#### 1.10.2 Per-Agent Output Schemas
+
+**01_Systems Output:**
+```python
+class SystemsOutput(BaseModel):
+    """Required output structure for 01_systems agent."""
+
+    system_map: str                    # Markdown describing system dynamics
+    value_chain: List[Dict[str, str]]  # [{node, role, value_capture}]
+    feedback_loops: List[Dict]         # Identified feedback mechanisms
+    second_order_effects: List[str]    # Non-obvious consequences
+    bottlenecks: List[str]             # Constraints and chokepoints
+    key_dependencies: List[str]        # Critical dependencies
+
+    # Required sections in markdown
+    required_sections: ClassVar[List[str]] = [
+        "System Overview",
+        "Value Chain Analysis",
+        "Second-Order Effects",
+        "Key Bottlenecks",
+    ]
+```
+
+**02_Inversion Output:**
+```python
+class InversionOutput(BaseModel):
+    """Required output structure for 02_inversion agent."""
+
+    kill_criteria: List[Dict[str, str]]     # [{criterion, trigger, severity}]
+    failure_modes: List[Dict]               # How this could fail
+    fragility_analysis: Dict[str, int]      # {factor: fragility_score 1-5}
+    downside_scenarios: List[Dict]          # Bear cases
+    mitigations: List[Dict[str, str]]       # [{risk, mitigation}]
+
+    required_sections: ClassVar[List[str]] = [
+        "Kill Criteria",
+        "Failure Modes",
+        "Fragility Assessment",
+        "Downside Scenarios",
+        "Mitigations",
+    ]
+```
+
+**03_Allocator Output:**
+```python
+class AllocatorOutput(BaseModel):
+    """Required output structure for 03_allocator agent."""
+
+    opportunity_cost: str                   # What else could capital do
+    alternatives: List[Dict[str, str]]      # [{alternative, pros, cons}]
+    position_sizing: Optional[Dict]         # If invest objective
+    decision_thresholds: List[Dict]         # When to act
+    required_return: Optional[float]        # Hurdle rate
+    portfolio_fit: Optional[str]            # How it fits existing portfolio
+
+    required_sections: ClassVar[List[str]] = [
+        "Opportunity Cost",
+        "Alternatives Analysis",
+        "Decision Framework",
+    ]
+```
+
+**05_Epistemic Output:**
+```python
+class EpistemicOutput(BaseModel):
+    """Required output structure for 05_epistemic agent."""
+
+    know_assume_speculate: Dict[str, List[str]]  # Categorized claims
+    overconfidence_flags: List[str]              # Claims that seem too certain
+    data_quality_issues: List[str]               # Data reliability concerns
+    assumption_audit: List[Dict]                 # [{assumption, fragility, source}]
+    confidence_calibration: Dict[str, str]       # Suggested confidence levels
+
+    required_sections: ClassVar[List[str]] = [
+        "What We Know",
+        "What We Assume",
+        "What We Speculate",
+        "Overconfidence Alerts",
+        "Data Quality Assessment",
+    ]
+```
+
+**06_Screener Output:**
+```python
+class ScreenerOutput(BaseModel):
+    """Required output structure for 06_screener agent."""
+
+    universe: List[Dict]                    # All identified tickers
+    pure_play: List[Dict[str, str]]        # [{ticker, company, rationale}]
+    diversified: List[Dict[str, str]]      # [{ticker, company, exposure_pct}]
+    excluded: List[Dict[str, str]]         # [{ticker, reason}]
+    shortlist: List[str]                   # Top tickers for deep-dive
+    sector_dynamics: str                   # Sector overview
+
+    required_sections: ClassVar[List[str]] = [
+        "Sector Overview",
+        "Pure-Play Exposure",
+        "Diversified Exposure",
+        "Excluded Tickers",
+        "Shortlist for Deep-Dive",
+    ]
+```
+
+**07_Fundamental Output:**
+```python
+class FundamentalOutput(BaseModel):
+    """Required output structure for 07_fundamental agent."""
+
+    ticker: str
+    valuation_summary: Dict[str, Any]       # Metrics table
+    dcf_range: Optional[Dict[str, float]]   # {low, mid, high}
+    earnings_quality: str                   # Assessment
+    balance_sheet_risks: List[str]
+    bull_case: Dict[str, Any]
+    bear_case: Dict[str, Any]
+    base_case: Dict[str, Any]
+    key_assumptions: List[str]              # Flagged assumptions
+
+    required_sections: ClassVar[List[str]] = [
+        "Valuation Summary",
+        "Earnings Quality",
+        "Balance Sheet Assessment",
+        "Bull Case",
+        "Bear Case",
+        "Key Assumptions",
+    ]
+```
+
+**08_Technical Output:**
+```python
+class TechnicalOutput(BaseModel):
+    """Required output structure for 08_technical agent."""
+
+    ticker: str
+    trend_assessment: Dict[str, str]        # {primary, secondary, strength}
+    key_levels: List[Dict]                  # [{type, price, significance}]
+    momentum_indicators: Dict[str, Any]     # RSI, MACD, etc.
+    volume_analysis: str
+    entry_zones: List[Dict[str, float]]     # Suggested accumulation
+    exit_zones: List[Dict[str, float]]      # Take profit levels
+    stop_loss: Dict[str, float]             # Risk management
+
+    required_sections: ClassVar[List[str]] = [
+        "Trend Assessment",
+        "Key Levels",
+        "Momentum Analysis",
+        "Entry/Exit Zones",
+    ]
+```
+
+#### 1.10.3 Output Validation
+
+```python
+# skills/output_validation.py
+from typing import Type
+from pydantic import BaseModel, ValidationError
+
+AGENT_OUTPUT_SCHEMAS = {
+    "01_systems": SystemsOutput,
+    "02_inversion": InversionOutput,
+    "03_allocator": AllocatorOutput,
+    "04_incentives": IncentivesOutput,
+    "05_epistemic": EpistemicOutput,
+    "06_screener": ScreenerOutput,
+    "07_fundamental": FundamentalOutput,
+    "08_technical": TechnicalOutput,
+}
+
+class OutputValidationResult(BaseModel):
+    valid: bool
+    agent_name: str
+    missing_sections: List[str]
+    parse_errors: List[str]
+    warnings: List[str]
+
+def validate_agent_output(agent_name: str, output_markdown: str) -> OutputValidationResult:
+    """Validate that agent output contains required sections."""
+
+    schema = AGENT_OUTPUT_SCHEMAS.get(agent_name)
+    if not schema:
+        return OutputValidationResult(
+            valid=True,
+            agent_name=agent_name,
+            missing_sections=[],
+            parse_errors=["No schema defined for agent"],
+            warnings=[],
+        )
+
+    required_sections = getattr(schema, "required_sections", [])
+    output_lower = output_markdown.lower()
+
+    missing = []
+    for section in required_sections:
+        if section.lower() not in output_lower:
+            missing.append(section)
+
+    return OutputValidationResult(
+        valid=len(missing) == 0,
+        agent_name=agent_name,
+        missing_sections=missing,
+        parse_errors=[],
+        warnings=[f"Missing {len(missing)} required sections"] if missing else [],
+    )
+```
+
+### 1.11 Agent Selection Matrix
+
+Quick reference for which agents are relevant for each objective type:
+
+| Agent | INVEST | BUILD | EXPLORE | DECIDE | INVENT |
+|-------|--------|-------|---------|--------|--------|
+| **01 Systems** | ✓ Required | ✓ Required | ✓ Required | ✓ Required | ✓ Required |
+| **02 Inversion** | ✓ Required | ✓ Required | ○ Conditional | ✓ Required | ✓ Required |
+| **03 Allocator** | ✓ Required | ✗ Skip | ✗ Skip | ✓ Required | ✗ Skip |
+| **04 Incentives** | ○ Conditional | ○ Conditional | ○ Conditional | ✓ Required | ○ Conditional |
+| **05 Epistemic** | ✓ Required | ✓ Required | ✓ Required | ✓ Required | ✓ Required |
+| **06 Screener** | ○ If equity | ✗ Skip | ✗ Skip | ✗ Skip | ✗ Skip |
+| **07 Fundamental** | ○ Per ticker | ✗ Skip | ✗ Skip | ✗ Skip | ✗ Skip |
+| **08 Technical** | ○ Per ticker | ✗ Skip | ✗ Skip | ✗ Skip | ✗ Skip |
+
+**Legend:**
+- ✓ Required: Always runs for this objective
+- ○ Conditional: Runs if specific conditions met
+- ✗ Skip: Not relevant for this objective
+
+**Conditional Triggers:**
+
+| Agent | Trigger Condition |
+|-------|-------------------|
+| 04 Incentives | Task mentions stakeholders, politics, power dynamics |
+| 06 Screener | Task mentions stocks, tickers, equity, companies, or sector |
+| 07 Fundamental | Screener returns tickers in shortlist |
+| 08 Technical | Screener returns tickers in shortlist |
+| 02 Inversion (EXPLORE) | Task explicitly requests risk analysis |
+
+### 1.12 Conflict Resolution Protocol
+
+When agents disagree, the Orchestrator follows this resolution protocol:
+
+#### 1.12.1 Conflict Detection
+
+```python
+# skills/conflicts.py
+from typing import List, Dict
+from pydantic import BaseModel
+
+class ConflictType(str, Enum):
+    FACTUAL = "factual"           # Disagreement on facts
+    INTERPRETIVE = "interpretive" # Same facts, different conclusions
+    VALUATION = "valuation"       # Different valuations
+    TIMING = "timing"             # Different timing views
+    RISK = "risk"                 # Different risk assessments
+
+class DetectedConflict(BaseModel):
+    conflict_id: str
+    conflict_type: ConflictType
+    topic: str
+    agents_involved: List[str]
+    positions: Dict[str, str]     # {agent: position}
+    severity: str                 # "critical", "moderate", "minor"
+    resolution_required: bool
+    suggested_resolution: Optional[str]
+
+def detect_conflicts(agent_outputs: Dict[str, str]) -> List[DetectedConflict]:
+    """Scan agent outputs for contradictions."""
+    conflicts = []
+
+    # Compare each pair of agents
+    agents = list(agent_outputs.keys())
+    for i, agent_a in enumerate(agents):
+        for agent_b in agents[i+1:]:
+            output_a = agent_outputs[agent_a]
+            output_b = agent_outputs[agent_b]
+
+            # Check for valuation conflicts (Allocator vs Fundamental)
+            if "03_allocator" in [agent_a, agent_b] and "07_fundamental" in [agent_a, agent_b]:
+                conflicts.extend(_check_valuation_conflict(agent_a, output_a, agent_b, output_b))
+
+            # Check for risk assessment conflicts (Inversion vs others)
+            if "02_inversion" in [agent_a, agent_b]:
+                conflicts.extend(_check_risk_conflict(agent_a, output_a, agent_b, output_b))
+
+    return conflicts
+```
+
+#### 1.12.2 Resolution Strategies
+
+| Conflict Type | Resolution Strategy | Decision Authority |
+|---------------|--------------------|--------------------|
+| **Factual** | Verify via CoVe or market data | CoVe Verifier |
+| **Interpretive** | Present both views in report | User decides |
+| **Valuation** | Show range (agent A low, agent B high) | Report both |
+| **Timing** | Present as scenario analysis | User decides |
+| **Risk** | Default to more conservative view | Inversion wins |
+
+#### 1.12.3 Resolution Protocol
+
+```markdown
+### Conflict Resolution Steps
+
+1. **Identify Conflict** - Detect contradiction between agents
+2. **Classify Type** - Factual, interpretive, valuation, timing, risk
+3. **Assess Severity** - Critical (blocks recommendation), Moderate, Minor
+4. **Apply Resolution Strategy:**
+   - **Factual conflicts** → Route to CoVe for verification
+   - **Interpretive conflicts** → Document both views, flag for user
+   - **Valuation conflicts** → Present range with sources
+   - **Risk conflicts** → Bias toward conservative (Inversion) view
+5. **Document Resolution** - Record in PipelineState
+6. **Update Recommendation** - Adjust confidence based on conflicts
+
+### Unresolvable Conflicts
+
+If conflict cannot be resolved:
+1. Flag as "Open Conflict" in report
+2. Present both positions clearly
+3. Reduce overall confidence score
+4. Request user guidance in report
+
+### Example Conflict Resolution
+
+**Conflict:** 03_Allocator says "too expensive at $28" vs 07_Fundamental says "fair value is $32"
+
+**Resolution:**
+- Type: Valuation
+- Strategy: Present range
+- Output: "Valuation range: $28 (conservative, Allocator) to $32 (base case, Fundamental).
+  Entry below $26 provides margin of safety per both views."
+```
+
+#### 1.12.4 Conflict Hierarchy
+
+When conflicts must be resolved with a "winner," apply this hierarchy:
+
+| Scenario | Winning Agent | Rationale |
+|----------|---------------|-----------|
+| Risk vs Opportunity | 02_Inversion | Conservative default |
+| Data vs Interpretation | CoVe result | Facts over opinion |
+| Valuation disagreement | Lower valuation | Margin of safety |
+| Timing disagreement | Longer timeline | Conservative default |
+| Assumptions conflict | 05_Epistemic | Meta-analysis authority |
+
+### 1.13 Checkpoint & Resume Protocol
+
+The pipeline supports checkpointing for recovery from failures.
+
+#### 1.13.1 Checkpoint Schema
+
+```python
+# runner/checkpoint.py
+from pydantic import BaseModel
+from typing import Dict, List, Optional
+from datetime import datetime
+
+class CheckpointStage(str, Enum):
+    INTAKE_COMPLETE = "intake_complete"
+    PARALLEL_COMPLETE = "parallel_complete"
+    SYNTHESIS_COMPLETE = "synthesis_complete"
+    DEEPDIVE_COMPLETE = "deepdive_complete"
+    COVE_COMPLETE = "cove_complete"
+    REPORT_COMPLETE = "report_complete"
+
+class Checkpoint(BaseModel):
+    checkpoint_id: str
+    run_id: str
+    stage: CheckpointStage
+    timestamp: datetime
+    state_snapshot: Dict          # Serialized PipelineState
+    agent_outputs: Dict[str, str] # Completed agent outputs
+    pending_agents: List[str]     # Agents not yet run
+    iteration: int
+    recoverable: bool
+    error_context: Optional[str]  # If checkpoint due to error
+
+def save_checkpoint(run_id: str, stage: CheckpointStage, state: PipelineState) -> str:
+    """Save a checkpoint for potential resume."""
+    checkpoint = Checkpoint(
+        checkpoint_id=generate_id(),
+        run_id=run_id,
+        stage=stage,
+        timestamp=datetime.now(),
+        state_snapshot=state.model_dump(),
+        agent_outputs=_collect_agent_outputs(run_id),
+        pending_agents=_get_pending_agents(state),
+        iteration=state.run_log.iterations_used,
+        recoverable=True,
+    )
+
+    # Save to database
+    db.execute("""
+        INSERT INTO checkpoints (checkpoint_id, run_id, stage, data, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, [checkpoint.checkpoint_id, run_id, stage.value,
+          checkpoint.model_dump_json(), checkpoint.timestamp])
+
+    return checkpoint.checkpoint_id
+```
+
+#### 1.13.2 Resume Logic
+
+```python
+# runner/checkpoint.py
+def resume_from_checkpoint(run_id: str, checkpoint_id: Optional[str] = None) -> PipelineState:
+    """Resume a pipeline run from the last checkpoint."""
+
+    if checkpoint_id:
+        checkpoint = load_checkpoint(checkpoint_id)
+    else:
+        # Find latest checkpoint for this run
+        checkpoint = get_latest_checkpoint(run_id)
+
+    if not checkpoint:
+        raise ValueError(f"No checkpoint found for run {run_id}")
+
+    if not checkpoint.recoverable:
+        raise ValueError(f"Checkpoint {checkpoint.checkpoint_id} is not recoverable")
+
+    # Restore state
+    state = PipelineState(**checkpoint.state_snapshot)
+
+    # Log resume
+    logger.info("pipeline_resume",
+                run_id=run_id,
+                checkpoint=checkpoint.checkpoint_id,
+                stage=checkpoint.stage,
+                pending_agents=checkpoint.pending_agents)
+
+    return state, checkpoint.stage, checkpoint.pending_agents
+```
+
+#### 1.13.3 CLI Integration
+
+```bash
+# Resume from last checkpoint
+python -m runner.run --resume <run_id>
+
+# Resume from specific checkpoint
+python -m runner.run --resume <run_id> --checkpoint <checkpoint_id>
+
+# List checkpoints for a run
+python -m runner.run --list-checkpoints <run_id>
+```
+
+### 1.14 Output Summarization Protocol
+
+Before passing to Reporting, agent outputs are summarized to manage context limits.
+
+#### 1.14.1 Summarization Strategy
+
+```python
+# skills/summarization.py
+MAX_TOKENS_PER_AGENT = 1500  # Summarized output limit
+MAX_TOTAL_CONTEXT = 12000    # Total context for Reporting agent
+
+class AgentSummary(BaseModel):
+    agent_name: str
+    key_findings: List[str]      # Top 3-5 findings
+    recommendation: Optional[str]
+    confidence: str              # high/medium/low
+    conflicts_raised: List[str]
+    open_questions: List[str]
+    full_output_path: str        # Path to complete output
+
+def summarize_for_reporting(agent_outputs: Dict[str, str]) -> Dict[str, AgentSummary]:
+    """Summarize agent outputs for Reporting agent context."""
+    summaries = {}
+
+    for agent_name, output in agent_outputs.items():
+        # Extract key sections
+        key_findings = extract_key_findings(output, max_items=5)
+        recommendation = extract_recommendation(output)
+        conflicts = extract_conflicts_raised(output)
+        questions = extract_open_questions(output)
+
+        summaries[agent_name] = AgentSummary(
+            agent_name=agent_name,
+            key_findings=key_findings,
+            recommendation=recommendation,
+            confidence=assess_confidence(output),
+            conflicts_raised=conflicts,
+            open_questions=questions,
+            full_output_path=f"data/runs/{run_id}/{agent_name}.md",
+        )
+
+    return summaries
+
+def build_reporting_context(summaries: Dict[str, AgentSummary], state: PipelineState) -> str:
+    """Build context package for Reporting agent."""
+    context_parts = []
+
+    # Add orchestrator synthesis
+    context_parts.append("## Orchestrator Synthesis\n" + state.orchestrator_synthesis)
+
+    # Add agent summaries
+    context_parts.append("## Agent Summaries\n")
+    for agent_name, summary in summaries.items():
+        context_parts.append(f"### {agent_name}\n")
+        context_parts.append(f"**Key Findings:**\n")
+        for finding in summary.key_findings:
+            context_parts.append(f"- {finding}\n")
+        if summary.recommendation:
+            context_parts.append(f"**Recommendation:** {summary.recommendation}\n")
+        context_parts.append(f"**Confidence:** {summary.confidence}\n")
+
+    # Add conflicts
+    if state.conflicts:
+        context_parts.append("## Open Conflicts\n")
+        for conflict in state.conflicts:
+            context_parts.append(f"- {conflict.topic}: {conflict.agent_positions}\n")
+
+    # Add decisions
+    if state.decisions.recommendation:
+        context_parts.append(f"## Preliminary Recommendation\n{state.decisions.recommendation}\n")
+
+    return "\n".join(context_parts)
+```
+
+### 1.15 Key Design Principles (Updated)
+
+1. **Separation of Concerns:** Reasoning agents decide *what matters*; skills generate *truthful artifacts*; reporting tells *coherent stories from verified outputs*
+2. **Auditability:** Every decision has a traceable provenance chain with hashes and timestamps
+3. **Reproducibility:** Charter hashes, input/output hashes, and state snapshots enable exact reproduction
+4. **No Hallucinated Evidence:** Agents cannot invent figures, data, or citations
+5. **Graceful Degradation:** System runs with minimal input; assumptions are explicit and confidence-tagged
+6. **Chain of Custody:** Every data handoff between components is explicitly defined
+7. **Fail-Safe Defaults:** When agents conflict, bias toward conservative interpretation
+8. **Resumability:** Pipeline can recover from failures via checkpoints
+
 ---
 
 ## 2. Identified Improvements & Recommendations
@@ -2354,8 +3226,21 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md --parallel-onl
 **Deliverables:**
 - [ ] ThreadPoolExecutor-based parallel execution
 - [ ] State snapshot before/after parallel pass
-- [ ] Orchestrator synthesis prompt and charter
-- [ ] Conflict detection (basic)
+- [ ] `charters/orchestrator.md` - Full Orchestrator charter with:
+  - [ ] Agent selection logic (objective → agent mapping)
+  - [ ] Synthesis protocol
+  - [ ] Iteration control logic
+  - [ ] CoVe trigger rules
+  - [ ] Stop conditions
+- [ ] `runner/orchestrator.py` - Orchestrator implementation
+  - [ ] `select_agents()` function per selection matrix
+  - [ ] `synthesize_outputs()` function
+  - [ ] `decide_iteration()` function
+  - [ ] `should_trigger_cove()` function
+- [ ] `skills/conflicts.py` - Conflict detection
+  - [ ] `detect_conflicts()` function
+  - [ ] Conflict type classification
+  - [ ] Resolution strategy selection
 - [ ] Sequential plan generation
 - [ ] Notebook: `03_phase1_parallel_then_synth.ipynb`
 
@@ -2364,6 +3249,8 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md --parallel-onl
 python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md --parallel-only
 # Verify: 5 agent outputs + orchestrator_synthesis.md
 # Verify: state_snapshots table has "post_parallel" entry
+# Verify: Conflicts detected and logged (if any)
+# Verify: Agent selection follows matrix for 'invest' objective
 ```
 
 #### Phase 1E: Full Pipeline with Reporting
@@ -2436,7 +3323,26 @@ python -m runner.run --intake inputs/example_intakes/complete.md
   - [ ] Risk matrix visualizations
   - [ ] Style guide implementation (colors, fonts, layout)
 - [ ] Chart export (HTML + PNG) to run artifacts
-- [ ] Notebook: `05_phase2_skills_and_report.ipynb`
+- [ ] `schemas/agent_outputs.py` - Agent output schemas
+  - [ ] Per-agent Pydantic models (SystemsOutput, InversionOutput, etc.)
+  - [ ] Required sections validation
+- [ ] `skills/output_validation.py` - Output validation
+  - [ ] `validate_agent_output()` function
+  - [ ] Missing section detection
+  - [ ] Re-prompt logic for invalid outputs
+- [ ] `skills/summarization.py` - Output summarization
+  - [ ] `summarize_for_reporting()` function
+  - [ ] Key findings extraction
+  - [ ] Context limit management
+- [ ] `skills/document_ingestion.py` - Reference material parsing
+  - [ ] PDF text extraction
+  - [ ] Markdown/text file parsing
+  - [ ] Chunking for context limits
+- [ ] `runner/checkpoint.py` - Checkpoint and resume
+  - [ ] `save_checkpoint()` function
+  - [ ] `resume_from_checkpoint()` function
+  - [ ] `--resume` CLI flag
+- [ ] Notebook: `06_phase2_skills_and_report.ipynb`
 
 **Validation Checkpoint:**
 ```bash
@@ -2445,6 +3351,15 @@ python -c "from skills.plotting import ReportPlotter; p = ReportPlotter(); print
 # Verify chart output exists after test run
 ls data/runs/<test_run_id>/charts/
 # Expected: valuation_comparison.html, valuation_comparison.png, etc.
+
+# Test output validation
+python -c "from skills.output_validation import validate_agent_output; print(validate_agent_output('01_systems', '# Test'))"
+
+# Test checkpoint/resume
+python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md --max-agents 2
+# Note the run_id, then:
+python -m runner.run --resume <run_id>
+# Verify: Pipeline resumes from last checkpoint
 ```
 
 #### Phase 2B: Equity Research Agents
@@ -3114,6 +4029,45 @@ CREATE TABLE IF NOT EXISTS charter_versions (
     content TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Pipeline checkpoints for resume capability
+CREATE TABLE IF NOT EXISTS checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    stage TEXT NOT NULL,  -- intake_complete, parallel_complete, etc.
+    iteration INTEGER DEFAULT 0,
+    state_snapshot TEXT,  -- JSON serialized PipelineState
+    agent_outputs TEXT,   -- JSON map of agent -> output path
+    pending_agents TEXT,  -- JSON list of agents not yet run
+    recoverable BOOLEAN DEFAULT TRUE,
+    error_context TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Agent output validation results
+CREATE TABLE IF NOT EXISTS output_validations (
+    validation_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    valid BOOLEAN,
+    missing_sections TEXT,  -- JSON list
+    warnings TEXT,          -- JSON list
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conflict tracking
+CREATE TABLE IF NOT EXISTS conflicts (
+    conflict_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    conflict_type TEXT,     -- factual, interpretive, valuation, timing, risk
+    topic TEXT,
+    agents_involved TEXT,   -- JSON list
+    positions TEXT,         -- JSON map agent -> position
+    severity TEXT,          -- critical, moderate, minor
+    resolution TEXT,
+    resolved BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ---
@@ -3273,24 +4227,36 @@ runner/
 ├── __init__.py
 ├── run.py             # CLI entrypoint
 ├── pipeline.py        # Pipeline orchestration
+├── orchestrator.py    # Orchestrator logic (Phase 1D)
 ├── state.py           # State schema (Pydantic)
 ├── artifacts.py       # Artifact management
 ├── db.py              # DuckDB operations
 ├── llm.py             # Provider abstraction
 ├── utils.py           # Utilities, hashing
 ├── intake.py          # Intake parser and agent (Phase 1F)
+├── checkpoint.py      # Checkpoint and resume (Phase 2A)
 └── cove.py            # CoVe module orchestration (Phase 2C)
+
+schemas/
+├── __init__.py
+├── agent_input.py     # Universal agent input context
+└── agent_outputs.py   # Per-agent output schemas
 
 skills/
 ├── __init__.py
 ├── extractors.py        # Output parsing
 ├── scoring.py           # Confidence scoring
 ├── memo_builder.py      # Report assembly
-├── conflicts.py         # Conflict detection
+├── conflicts.py         # Conflict detection and resolution
 ├── financials.py        # Financial data parsing
 │
 ├── # Intake System (Phase 1F)
 ├── intake_quality.py    # Intake quality scoring
+│
+├── # Output Validation & Summarization (Phase 2A)
+├── output_validation.py # Agent output schema validation
+├── summarization.py     # Output summarization for Reporting
+├── document_ingestion.py # Reference material parsing (PDF, text)
 │
 ├── # Reporting & Visualization (Phase 2A/2E)
 ├── plotting.py          # Publication-quality chart generation
@@ -3561,6 +4527,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0 | 2026-02-03 | **Major Architecture Analysis & Gap Resolution** — Added Section 1.9: Orchestrator Charter with agent selection logic, synthesis protocol, iteration control, CoVe trigger rules, and stop conditions. Added Section 1.10: Agent Data Contracts with universal input schema and per-agent output schemas (SystemsOutput, InversionOutput, etc.) with required sections validation. Added Section 1.11: Agent Selection Matrix mapping objectives to required/conditional/skip agents. Added Section 1.12: Conflict Resolution Protocol with detection, classification, and resolution strategies. Added Section 1.13: Checkpoint & Resume Protocol for pipeline recovery. Added Section 1.14: Output Summarization Protocol for context management. Updated Phase 1D with Orchestrator implementation deliverables. Updated Phase 2A with output validation, summarization, document ingestion, and checkpoint skills. Added database tables: checkpoints, output_validations, conflicts. Added schemas/ directory for agent contracts. Updated Key Design Principles with chain of custody, fail-safe defaults, and resumability. |
 | 1.9 | 2026-02-03 | **Intake System** (Section 1.7): Added comprehensive Intake Form template with 7 sections and 20+ guided fields. Intake Agent charter for interactive context gathering. Intake Quality Score system with objective-specific field weighting. Objective-specific question sets (invest/build/explore/decide/invent). Pipeline integration with CLI flags (--intake, --intake-agent, --check-intake-only). Flexible approach: all fields optional with quality warnings. Phase 1F for intake implementation. |
 | 1.8 | 2026-02-03 | **Reporting Agent & Report Quality Standards** (Section 1.6): Added comprehensive Reporting Agent Charter with Amazon memo philosophy. Sell-side quality standards and enforcement. Full report template with required sections. Plotting skills specification (plotly/matplotlib, chart types, style guide). Report quality gate system with automated checks. Phase 2E for report quality implementation. Shippable report definition and criteria. |
 | 1.7 | 2026-02-03 | Added Equity Agent Charter Prompts: Stock Screener criteria, Fundamental Analyst framework, Technical Chart breakdown, Risk Manager enhancement, News Impact Analyzer skill, Daily Market Routine for orchestrator. Professional prompt patterns for each agent role. |
@@ -3574,6 +4541,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.9*
+*Document Version: 2.0*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
