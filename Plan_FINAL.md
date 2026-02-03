@@ -758,7 +758,478 @@ CREATE TABLE IF NOT EXISTS cove_claims (
 );
 ```
 
-### 1.6 Key Design Principles
+### 1.6 Reporting Agent & Report Quality Standards
+
+The Reporting Agent produces the final deliverable: a **sell-side quality research memo** structured with the **Amazon memo philosophy**. This is the user-facing artifact that synthesizes all agent outputs.
+
+#### 1.6.1 Amazon Memo Philosophy
+
+The Amazon-style memo emphasizes **clarity over brevity** and **structured thinking over bullet points**:
+
+| Principle | Application in Reports |
+|-----------|------------------------|
+| **Narrative prose** | Key findings written in full sentences, not just bullets |
+| **"So what?" test** | Every section must answer: "Why does this matter for the decision?" |
+| **Data-backed claims** | Quantitative support for qualitative statements |
+| **Disagree and commit** | Document dissenting views before final recommendation |
+| **Start with the conclusion** | Executive summary leads with recommendation |
+| **Appendices for depth** | Main memo is 1-3 pages; supporting detail in appendices |
+
+#### 1.6.2 Sell-Side Quality Standards
+
+Reports must meet the quality bar of professional sell-side research:
+
+| Quality Dimension | Standard | Enforcement |
+|-------------------|----------|-------------|
+| **Data Accuracy** | All figures verified via CoVe or market data | Automated verification |
+| **Source Attribution** | Every data point has provenance | Source field required |
+| **Visual Quality** | Publication-ready charts | Style guide compliance |
+| **Logical Flow** | Clear thesis → evidence → conclusion | Template structure |
+| **Risk Balance** | Bull AND bear cases presented | Required sections |
+| **Actionability** | Clear recommendations with triggers | Decision framework |
+| **Timeliness** | Data freshness noted | Timestamp requirements |
+
+#### 1.6.3 Reporting Agent Charter
+
+```markdown
+## Charter: Reporting Agent
+
+You are a senior equity research analyst at a top-tier investment bank. Your role
+is to synthesize multi-agent analysis into a professional research memo that meets
+publication standards.
+
+### Writing Philosophy (Amazon Memo Style)
+
+1. **Lead with the answer**: Executive summary states recommendation first
+2. **Narrative over bullets**: Use prose to explain reasoning, bullets for lists only
+3. **Every claim supported**: Link statements to source agents or data
+4. **Assume intelligent reader**: No jargon explanation, but define non-obvious terms
+5. **Honest uncertainty**: Use confidence language ("likely", "suggests", "unclear")
+
+### Report Structure
+
+Your output MUST follow this structure:
+
+#### 1. Executive Summary (1/2 page max)
+- **Recommendation**: Clear action (Buy/Hold/Sell or equivalent decision)
+- **Key Thesis**: 2-3 sentences on why
+- **Price Target / Decision Threshold**: Quantitative anchor
+- **Risk Level**: Low/Medium/High with primary risk factor
+
+#### 2. Investment Thesis (1 page)
+- **The Opportunity**: What asymmetry exists?
+- **Key Drivers**: 3-5 factors that make this work
+- **Why Now**: Timing rationale and catalysts
+- **Differentiated View**: What the market is missing
+
+#### 3. Analysis Summary (1-2 pages)
+- **Systems Analysis**: Value chain, second-order effects
+- **Fundamental Assessment**: Valuation, financials, quality
+- **Technical Setup**: Entry zones, risk levels (if equity)
+- **Risk Analysis**: Kill criteria, fragility points
+- **Epistemic Check**: What we know vs assume vs speculate
+
+#### 4. Recommendation Framework
+- **Base Case**: Most likely outcome with probability
+- **Bull Case**: Upside scenario with triggers
+- **Bear Case**: Downside scenario with triggers
+- **Action Items**: Specific next steps
+
+#### 5. Appendices
+- Detailed per-ticker analysis (if equity)
+- Supporting data tables
+- Verification summary (CoVe output)
+- Assumption audit
+
+### Visual Requirements
+
+Include the following charts where applicable:
+- Valuation comparison (peer multiples)
+- Price chart with key levels (technical)
+- Financial trends (revenue, margins, cash flow)
+- Scenario analysis (bull/base/bear outcomes)
+
+### Quality Checklist (Self-Verify Before Output)
+
+Before producing final output, verify:
+- [ ] Executive summary stands alone (reader gets key message)
+- [ ] All numerical claims have sources
+- [ ] Bull AND bear cases are balanced
+- [ ] Recommendation is clear and actionable
+- [ ] Charts are referenced in text
+- [ ] Assumptions are flagged explicitly
+- [ ] "So what?" answered for each section
+```
+
+#### 1.6.4 Report Template
+
+```markdown
+# [TOPIC] — Investment Analysis
+
+**Date:** [YYYY-MM-DD]
+**Analyst:** deepmind1 Multi-Agent System
+**Run ID:** [run_id]
+
+---
+
+## Executive Summary
+
+**RECOMMENDATION: [BUY / HOLD / SELL / PROCEED / WAIT / DECLINE]**
+
+[2-3 sentence thesis explaining the recommendation]
+
+| Metric | Value |
+|--------|-------|
+| Price Target / Decision Threshold | $XX - $XX |
+| Confidence Level | [High / Medium / Low] |
+| Time Horizon | [X months] |
+| Primary Risk | [One-line risk description] |
+
+---
+
+## Investment Thesis
+
+### The Opportunity
+[Prose paragraph explaining the asymmetry or value proposition]
+
+### Key Drivers
+1. **[Driver 1]**: [Explanation]
+2. **[Driver 2]**: [Explanation]
+3. **[Driver 3]**: [Explanation]
+
+### Why Now
+[Prose paragraph on timing and catalysts]
+
+### Differentiated View
+[What consensus is missing; our edge]
+
+---
+
+## Analysis Summary
+
+### Systems & Value Chain
+[Summary from 01_systems agent]
+
+**Key Finding:** [One-line takeaway]
+
+### Fundamental Assessment
+[Summary from 07_fundamental if equity; otherwise relevant quantitative analysis]
+
+| Metric | Value | vs Peers | Assessment |
+|--------|-------|----------|------------|
+| [Metric 1] | X | Y | [Premium/Discount/Fair] |
+
+**Key Finding:** [One-line takeaway]
+
+### Technical Setup (if applicable)
+[Summary from 08_technical]
+
+| Level Type | Price | Significance |
+|------------|-------|--------------|
+| Entry Zone | $X - $Y | [Why] |
+| Stop Loss | $Z | [Why] |
+| Target | $W | [Why] |
+
+### Risk Analysis
+[Summary from 02_inversion]
+
+**Kill Criteria:**
+1. [Condition that would invalidate thesis]
+2. [Condition that would invalidate thesis]
+
+### Epistemic Audit
+[Summary from 05_epistemic]
+
+| Category | Count | Key Items |
+|----------|-------|-----------|
+| Known Facts | X | [List] |
+| Assumptions | Y | [List highest-fragility] |
+| Speculations | Z | [List] |
+
+---
+
+## Recommendation Framework
+
+### Scenario Analysis
+
+| Scenario | Probability | Outcome | Key Trigger |
+|----------|-------------|---------|-------------|
+| Bull | XX% | [Outcome] | [Trigger] |
+| Base | XX% | [Outcome] | [Default path] |
+| Bear | XX% | [Outcome] | [Trigger] |
+
+### Action Items
+1. **Immediate:** [Action]
+2. **Near-term:** [Action]
+3. **Monitor:** [What to watch]
+
+---
+
+## Appendices
+
+### A. Detailed Ticker Analysis
+[Per-ticker summaries from equity agents]
+
+### B. Verification Summary
+[CoVe output summary: X claims verified, Y revised, Z flagged]
+
+### C. Data Sources
+[List of data sources with timestamps]
+
+### D. Agent Outputs
+[Links to full agent output artifacts]
+
+---
+
+*This report was generated by deepmind1 multi-agent system.*
+*Data as of: [timestamp]*
+*Report version: 1.0*
+```
+
+#### 1.6.5 Plotting Skills Specification
+
+The Reporting Agent has access to plotting skills for generating publication-quality visualizations.
+
+**Library Stack:**
+- **Primary:** `plotly` (interactive HTML charts, embeddable)
+- **Secondary:** `matplotlib` (static PNG for PDF export)
+- **Data:** `pandas` for data manipulation
+
+**Chart Types by Use Case:**
+
+| Use Case | Chart Type | Library | Output |
+|----------|------------|---------|--------|
+| Peer valuation | Horizontal bar | plotly | HTML + PNG |
+| Price history | Candlestick/Line | plotly | HTML + PNG |
+| Scenario outcomes | Waterfall/Tornado | plotly | HTML + PNG |
+| Financial trends | Multi-line | matplotlib | PNG |
+| Market share | Donut/Pie | plotly | HTML |
+| Correlation matrix | Heatmap | plotly | HTML |
+| Risk distribution | Box plot | plotly | HTML |
+
+**Visual Style Guide:**
+
+```python
+# skills/plotting.py
+CHART_STYLE = {
+    "colors": {
+        "primary": "#1f77b4",     # Blue for main series
+        "secondary": "#ff7f0e",   # Orange for comparison
+        "positive": "#2ca02c",    # Green for gains
+        "negative": "#d62728",    # Red for losses
+        "neutral": "#7f7f7f",     # Gray for context
+        "accent": "#9467bd",      # Purple for highlights
+    },
+    "font": {
+        "family": "Inter, Arial, sans-serif",
+        "title_size": 16,
+        "label_size": 12,
+        "tick_size": 10,
+    },
+    "layout": {
+        "background": "#ffffff",
+        "grid_color": "#e5e5e5",
+        "margin": {"l": 60, "r": 40, "t": 60, "b": 60},
+    },
+}
+```
+
+**Required Chart Functions:**
+
+```python
+# skills/plotting.py
+from typing import List, Dict, Optional
+import plotly.graph_objects as go
+import plotly.express as px
+import pandas as pd
+
+class ReportPlotter:
+    """Publication-quality charts for research reports."""
+
+    def valuation_comparison(
+        self,
+        tickers: List[str],
+        metrics: Dict[str, Dict[str, float]],  # {ticker: {metric: value}}
+        metric_name: str = "P/E Ratio",
+        highlight_ticker: Optional[str] = None,
+    ) -> go.Figure:
+        """Horizontal bar chart comparing valuation metrics across peers."""
+        ...
+
+    def price_chart(
+        self,
+        ticker: str,
+        ohlcv: pd.DataFrame,
+        support_levels: List[float] = [],
+        resistance_levels: List[float] = [],
+        moving_averages: List[int] = [50, 200],
+    ) -> go.Figure:
+        """Candlestick chart with technical levels."""
+        ...
+
+    def scenario_waterfall(
+        self,
+        base_value: float,
+        scenarios: Dict[str, float],  # {scenario_name: impact}
+        title: str = "Scenario Analysis",
+    ) -> go.Figure:
+        """Waterfall chart showing scenario impacts on base case."""
+        ...
+
+    def financial_trends(
+        self,
+        ticker: str,
+        financials: pd.DataFrame,  # columns: date, revenue, net_income, etc.
+        metrics: List[str] = ["revenue", "net_income"],
+    ) -> go.Figure:
+        """Multi-line chart of financial trends over time."""
+        ...
+
+    def risk_matrix(
+        self,
+        risks: List[Dict],  # [{name, probability, impact}]
+        title: str = "Risk Assessment Matrix",
+    ) -> go.Figure:
+        """Scatter plot of risks by probability vs impact."""
+        ...
+
+    def confidence_gauge(
+        self,
+        confidence: float,  # 0.0 to 1.0
+        label: str = "Overall Confidence",
+    ) -> go.Figure:
+        """Gauge chart showing confidence level."""
+        ...
+
+    def save_chart(
+        self,
+        fig: go.Figure,
+        run_id: str,
+        chart_name: str,
+        formats: List[str] = ["html", "png"],
+    ) -> Dict[str, str]:
+        """Save chart to run folder in multiple formats."""
+        paths = {}
+        for fmt in formats:
+            path = f"data/runs/{run_id}/charts/{chart_name}.{fmt}"
+            if fmt == "html":
+                fig.write_html(path)
+            elif fmt == "png":
+                fig.write_image(path, width=1200, height=600, scale=2)
+            paths[fmt] = path
+        return paths
+```
+
+**Chart Quality Checklist:**
+
+| Criterion | Requirement |
+|-----------|-------------|
+| **Titles** | Descriptive, includes time period if applicable |
+| **Axes** | Labeled with units, appropriate scale |
+| **Legend** | Clear, not overlapping data |
+| **Colors** | Consistent with style guide, colorblind-safe |
+| **Annotations** | Key levels/events highlighted |
+| **Source** | Data source noted in subtitle or caption |
+| **Resolution** | PNG at 2x scale for print quality |
+
+#### 1.6.6 Report Quality Gate
+
+Before a report is marked as "shippable," it must pass automated and manual quality gates:
+
+**Automated Checks:**
+
+```python
+# skills/report_quality.py
+from typing import List, Tuple
+from pydantic import BaseModel
+
+class QualityCheckResult(BaseModel):
+    check_name: str
+    passed: bool
+    message: str
+    severity: str  # "blocker", "warning", "info"
+
+def check_report_quality(report_md: str, run_id: str) -> List[QualityCheckResult]:
+    """Run all quality checks on a report."""
+    results = []
+
+    # Structure checks
+    results.append(check_required_sections(report_md))
+    results.append(check_executive_summary_length(report_md))
+    results.append(check_recommendation_present(report_md))
+
+    # Content checks
+    results.append(check_numerical_claims_sourced(report_md))
+    results.append(check_bull_bear_balance(report_md))
+    results.append(check_assumption_flags(report_md))
+
+    # Visual checks
+    results.append(check_charts_referenced(report_md, run_id))
+    results.append(check_charts_exist(run_id))
+
+    # CoVe checks
+    results.append(check_cove_verification(run_id))
+
+    return results
+
+REQUIRED_SECTIONS = [
+    "Executive Summary",
+    "Investment Thesis",
+    "Analysis Summary",
+    "Recommendation Framework",
+]
+
+def check_required_sections(report_md: str) -> QualityCheckResult:
+    """Verify all required sections are present."""
+    missing = []
+    for section in REQUIRED_SECTIONS:
+        if section.lower() not in report_md.lower():
+            missing.append(section)
+
+    return QualityCheckResult(
+        check_name="required_sections",
+        passed=len(missing) == 0,
+        message=f"Missing sections: {missing}" if missing else "All sections present",
+        severity="blocker" if missing else "info",
+    )
+
+def check_bull_bear_balance(report_md: str) -> QualityCheckResult:
+    """Ensure both bull and bear cases are discussed."""
+    has_bull = "bull" in report_md.lower()
+    has_bear = "bear" in report_md.lower()
+
+    return QualityCheckResult(
+        check_name="bull_bear_balance",
+        passed=has_bull and has_bear,
+        message="Both bull and bear cases present" if (has_bull and has_bear) else "Missing bull or bear case",
+        severity="blocker" if not (has_bull and has_bear) else "info",
+    )
+
+def check_cove_verification(run_id: str) -> QualityCheckResult:
+    """Check that CoVe was run and no core claims were contradicted."""
+    # Query cove_runs table for this run
+    # Check verdict != 'blocked'
+    ...
+```
+
+**Quality Gate Thresholds:**
+
+| Gate Level | Criteria | Action if Failed |
+|------------|----------|------------------|
+| **Blocker** | Missing required section, no recommendation, unverified core claims | Cannot ship; must fix |
+| **Warning** | Missing bull/bear balance, unsourced numbers, no charts | Flag for review; can ship with acknowledgment |
+| **Info** | Style suggestions, length recommendations | Logged; optional fix |
+
+**Shippable Report Definition:**
+
+A report is "shippable" when:
+1. Zero **blocker** quality checks failed
+2. All **core** CoVe claims are `Supported` or `Unverified with caveat`
+3. Recommendation is explicit (not "further analysis needed")
+4. At least one visual/chart is included
+5. Executive summary is ≤ 1/2 page
+
+### 1.7 Key Design Principles
 
 1. **Separation of Concerns:** Reasoning agents decide *what matters*; skills generate *truthful artifacts*; reporting tells *coherent stories from verified outputs*
 2. **Auditability:** Every decision has a traceable provenance chain with hashes and timestamps
@@ -922,7 +1393,7 @@ Start with best-performing configuration, optimize for cost later based on token
 
 | Agent | Model | Thinking Mode | Max Thinking Tokens | Rationale |
 |-------|-------|---------------|---------------------|-----------|
-| **Reporting** | Sonnet 4 | Standard | — | Summarization and formatting |
+| **Reporting** | Sonnet 4 | Standard | — | Synthesis, narrative writing, Amazon memo style; structured output with templates |
 
 #### 2.6.3 Extended Thinking Rationale
 
@@ -1189,15 +1660,31 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 
 ### Phase 2: Enhancement & Hardening
 
-#### Phase 2A: Skills Layer
+#### Phase 2A: Skills Layer & Plotting
 **Dependencies:** Phase 1E
 
 **Deliverables:**
 - [ ] Structured extractors (assumptions, questions, conflicts)
 - [ ] Automatic state enrichment after each agent
 - [ ] Conflict detection and tracking
-- [ ] Basic plotting skills (stubs)
+- [ ] `skills/plotting.py` - Publication-quality chart generation
+  - [ ] Valuation comparison charts (horizontal bar)
+  - [ ] Price charts with technical levels (candlestick)
+  - [ ] Financial trend charts (multi-line)
+  - [ ] Scenario waterfall charts
+  - [ ] Risk matrix visualizations
+  - [ ] Style guide implementation (colors, fonts, layout)
+- [ ] Chart export (HTML + PNG) to run artifacts
 - [ ] Notebook: `05_phase2_skills_and_report.ipynb`
+
+**Validation Checkpoint:**
+```bash
+# Test plotting skills
+python -c "from skills.plotting import ReportPlotter; p = ReportPlotter(); print('Plotting ready')"
+# Verify chart output exists after test run
+ls data/runs/<test_run_id>/charts/
+# Expected: valuation_comparison.html, valuation_comparison.png, etc.
+```
 
 #### Phase 2B: Equity Research Agents
 **Dependencies:** Phase 2A
@@ -1264,6 +1751,51 @@ charters/
 - [ ] `test_equity_workflow.py`
 - [ ] `--dry-run` validation mode
 - [ ] Notebook: `08_phase2_regression_tests.ipynb`
+
+#### Phase 2E: Report Quality System
+**Dependencies:** Phase 2A (plotting), Phase 2C (CoVe)
+
+**Deliverables:**
+- [ ] `skills/report_quality.py` - Automated quality checks
+- [ ] Required section validation
+- [ ] Bull/bear balance enforcement
+- [ ] Numerical claim source verification
+- [ ] Chart reference validation
+- [ ] CoVe integration check
+- [ ] Report template enforcement
+- [ ] Quality gate CLI: `--check-quality` flag
+- [ ] Notebook: `09_phase2_report_quality.ipynb`
+
+**Validation Checkpoint:**
+```bash
+# Test report quality checks
+python -m runner.run --task inputs/example_tasks/rare_earth_diligence.md --check-quality
+# Expected output:
+# Quality Check Results:
+# ✓ required_sections: All sections present
+# ✓ bull_bear_balance: Both bull and bear cases present
+# ✓ recommendation_present: Clear recommendation found
+# ✓ charts_exist: 3 charts generated
+# ✓ cove_verification: No core claims contradicted
+#
+# RESULT: Report is SHIPPABLE (0 blockers, 0 warnings)
+```
+
+**Quality Report Schema:**
+```python
+# skills/report_quality.py
+class QualityReport(BaseModel):
+    run_id: str
+    report_path: str
+    total_checks: int
+    passed_checks: int
+    blockers: List[QualityCheckResult]
+    warnings: List[QualityCheckResult]
+    infos: List[QualityCheckResult]
+    is_shippable: bool
+    quality_score: float  # 0.0 - 1.0
+    generated_at: datetime
+```
 
 ---
 
@@ -1994,6 +2526,10 @@ skills/
 ├── conflicts.py         # Conflict detection
 ├── financials.py        # Financial data parsing
 │
+├── # Reporting & Visualization (Phase 2A/2E)
+├── plotting.py          # Publication-quality chart generation
+├── report_quality.py    # Automated quality checks
+│
 ├── # Market Data (Phase 3A)
 ├── market_data.py       # Unified market data interface
 ├── polygon_client.py    # Polygon.io API client
@@ -2018,7 +2554,10 @@ notebooks/
 ├── 03_phase1_parallel_then_synth.ipynb
 ├── 04_phase1_full_pipeline.ipynb
 ├── 05_phase2_skills_and_report.ipynb
-└── 06_phase2_regression_tests.ipynb
+├── 06_phase2_regression_tests.ipynb
+├── 07_phase2_equity_research.ipynb
+├── 08_phase2_cove_module.ipynb
+└── 09_phase2_report_quality.ipynb
 
 data/
 ├── runs/.gitkeep
@@ -2250,6 +2789,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.8 | 2026-02-03 | **Reporting Agent & Report Quality Standards** (Section 1.6): Added comprehensive Reporting Agent Charter with Amazon memo philosophy. Sell-side quality standards and enforcement. Full report template with required sections. Plotting skills specification (plotly/matplotlib, chart types, style guide). Report quality gate system with automated checks. Phase 2E for report quality implementation. Shippable report definition and criteria. |
 | 1.7 | 2026-02-03 | Added Equity Agent Charter Prompts: Stock Screener criteria, Fundamental Analyst framework, Technical Chart breakdown, Risk Manager enhancement, News Impact Analyzer skill, Daily Market Routine for orchestrator. Professional prompt patterns for each agent role. |
 | 1.6 | 2026-02-03 | Added Chain-of-Verification (CoVe) module (Section 1.5): Generator/Skeptic/Verifier/Editor agents for claim verification. CoVe trigger conditions, stop conditions, and integration with existing pipeline. Phase 2C for CoVe implementation. Database schema for verification tracking. Model config for CoVe agents. |
 | 1.5 | 2026-02-03 | Added Serper.dev as secondary search provider (fast, cost-effective Google Search). Updated provider priority: Brave → Serper → SerpAPI. Added SerperClient implementation. |
@@ -2261,6 +2801,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 1.7*
+*Document Version: 1.8*
 *Generated: 2026-02-03*
 *Status: Final Draft for Review*
