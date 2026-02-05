@@ -29,6 +29,14 @@ Format:
 ---
 ## Start of Changelog below:
 
+## 2026-02-05 — Session Summary (Claude Code) - Part 3
+- [x] Updated `Plan_FINAL.md` to version 2.1:
+  - Updated Section 1.3 Core Agents: Added 09_financial_data and Intake System categories (now 9 agents)
+  - Updated Section 1.2 Architecture diagram: Added dual entry points (direct vs conversational) and data layer
+  - Updated Phase 1F: Added conversational intake deliverables alongside form-based approach
+  - Added Phase 1G: Financial Data Layer implementation phase
+  - Added changelog entry for version 2.1
+
 ## 2026-02-05 — Session Summary (Claude Code) - Part 2
 - [x] Created Conversational Intake System:
   - `charters/intake_conversation.md` - Full charter for conversational intake via Claude Code CLI

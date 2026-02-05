@@ -13,8 +13,8 @@ This document provides a refined, actionable project plan for building **deepmin
 ### 1.1 System Overview
 
 deepmind1 is a **prompt-orchestrated multi-agent system** that:
-- Ingests structured or free-form research tasks
-- Executes parallel analysis through 8 specialized reasoning agents
+- Ingests research tasks via conversational intake or direct task files
+- Executes parallel analysis through 9 specialized agents (8 reasoning + 1 data layer)
 - Synthesizes findings through an orchestrator
 - Performs sequential deep-dives based on initial findings (including equity research)
 - Produces auditable, human-readable reports with full provenance
@@ -23,14 +23,26 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        USER INPUT                               │
-│                    (task_template.md)                           │
+│                      ENTRY OPTIONS                               │
+├─────────────────────────────────────────────────────────────────┤
+│  Option A: Direct Task File                                      │
+│  python -m runner.run --task task.md                            │
+│                                                                  │
+│  Option B: Conversational Intake (via Claude Code CLI)          │
+│  claude → /intake → multi-turn conversation                      │
+│  → generates task.md + reference_materials/                      │
+│  python -m runner.run --intake <intake_id>                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                USER INPUT (task.md + ref_materials/)            │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                       ORCHESTRATOR                              │
-│   - Normalizes input                                            │
+│   - Normalizes input, loads reference materials                 │
 │   - Routes to agents (selects relevant subset)                  │
 │   - Synthesizes findings                                        │
 │   - Plans sequential deep-dives                                 │
@@ -46,8 +58,17 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 │ Strategic    │       │ Equity       │       │ Meta         │
 │ Agents       │       │ Research     │       │ Agents       │
 │ (01-04)      │       │ (06-08)      │       │ (05)         │
-└──────────────┘       └──────────────┘       └──────────────┘
+└──────────────┘       └──────┬───────┘       └──────────────┘
      │                        │                        │
+     │                        ▼                        │
+     │               ┌──────────────┐                  │
+     │               │ 09_FINANCIAL │ (Data Layer)     │
+     │               │    DATA      │                  │
+     │               │ - Live APIs  │                  │
+     │               │ - SEC filings│                  │
+     │               │ - Agentic    │                  │
+     │               │   routing    │                  │
+     │               └──────────────┘                  │
      └────────────────────────┼────────────────────────┘
                               │
                               ▼
@@ -81,7 +102,7 @@ deepmind1 is a **prompt-orchestrated multi-agent system** that:
 
 ### 1.3 Core Agents
 
-The system employs 8 specialized agents organized into three categories:
+The system employs 9 specialized agents organized into five categories:
 
 #### Strategic Reasoning Agents (01-04)
 
@@ -105,6 +126,26 @@ The system employs 8 specialized agents organized into three categories:
 | Agent | Primary Focus | Key Outputs |
 |-------|---------------|-------------|
 | **05 Epistemic Reality Check** | Knowledge vs assumptions, confidence calibration | Know/assume/speculate table, overconfidence flags, data quality assessment |
+
+#### Data Layer Agent (09)
+
+| Agent | Primary Focus | Key Outputs |
+|-------|---------------|-------------|
+| **09 Financial Data** | Live market data retrieval, API integration, agentic tool routing | Price snapshots, financial statements, ratios, analyst estimates, SEC filings |
+
+**Note:** 09_financial_data is a specialized subagent inspired by the Dexter project's agentic tool routing pattern. It is NOT directly invoked by the Orchestrator, but rather delegated to by agents 06, 07, 08, 04, and CoVe_verifier when they need live financial data. Key features:
+- **Agentic routing:** Translates natural language data requests into specific API calls
+- **Source attribution:** All data includes source, freshness timestamp, and confidence level
+- **CoVe integration:** Data provenance enables downstream claim verification
+- **Caching:** Results cached within a run to avoid duplicate API calls
+
+#### Intake System
+
+| Component | Primary Focus | Key Outputs |
+|-----------|---------------|-------------|
+| **Intake Conversation Agent** | Conversational task definition, document processing, multi-session support | task.md, reference_materials/, session transcript, intake_summary.md |
+
+**Note:** The Intake Conversation Agent runs via Claude Code CLI (`/intake`). Instead of filling out a form, users have a natural brainstorming conversation to articulate their research question. The agent processes uploaded documents (PDFs, URLs, Excel, images) and makes them available to all downstream agents.
 
 ### 1.4 Equity Research Workflow
 
@@ -3275,33 +3316,141 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 #### Phase 1F: Intake System
 **Dependencies:** Phase 1C (LLM wrapper needed for Intake Agent)
 
-**Deliverables:**
+The intake system supports two modes:
+1. **Form-based intake** (legacy) - Fill out `intake_template.md` directly
+2. **Conversational intake** (primary) - Chat with Claude via `/intake` skill
+
+**Deliverables - Form-Based Intake:**
 - [ ] `inputs/intake_template.md` - Intake form template
 - [ ] `runner/intake.py` - Intake parser and quality scoring
 - [ ] `skills/intake_quality.py` - Quality score calculation
-- [ ] `charters/intake.md` - Intake Agent charter
-- [ ] Intake Agent integration with CLI
+- [ ] `charters/intake.md` - Legacy Intake Agent charter
 - [ ] Quality score display and warnings
-- [ ] `--intake-agent` flag for interactive mode
 - [ ] `--check-intake-only` for validation without pipeline
+
+**Deliverables - Conversational Intake (Primary):**
+- [ ] `charters/intake_conversation.md` - Conversational intake charter ✓ (created)
+- [ ] `schemas/intake_session.py` - Session, document, and task schemas ✓ (created)
+- [ ] `runner/intake_conversation.py` - Conversation session manager
+- [ ] `skills/document_processing.py` - PDF, URL, Excel, image extraction
+- [ ] Session storage in `data/intakes/<intake_id>/`
+- [ ] Multi-session support (pause/resume)
+- [ ] Reference materials manifest generation
+- [ ] Claude Code CLI integration via `/intake` skill
 - [ ] Notebook: `05_phase1_intake_system.ipynb`
+
+**Conversational Intake Flow:**
+```
+claude → /intake
+   │
+   ▼
+Phase 1: Open Exploration (2-5 turns)
+"What's on your mind? Tell me about what you're trying to figure out..."
+   │
+   ▼
+Phase 2: Thesis Sharpening (2-4 turns)
+"So the core bet is [X]. What's the biggest unknown?"
+   │
+   ▼
+Phase 3: Constraints & Criteria (2-3 turns)
+"What would make you walk away entirely?"
+   │
+   ▼
+Phase 4: Document Processing (as needed)
+User uploads PDFs, URLs, Excel files → processed and summarized
+   │
+   ▼
+Phase 5: Synthesis & Confirmation
+"Here's what I'm proposing to send to the analysis team... Does this capture it?"
+   │
+   ▼
+OUTPUT: data/intakes/<intake_id>/
+├── task.md              # Structured task file
+├── transcript.jsonl     # Full conversation
+├── session_meta.json    # Session state
+├── intake_summary.md    # Key highlights
+└── reference_materials/ # Processed documents
+    ├── originals/
+    ├── processed/
+    └── manifest.json
+```
 
 **Validation Checkpoint:**
 ```bash
-# Test intake parsing and quality scoring
-python -m runner.run --intake inputs/example_intakes/minimal.md --check-intake-only
-# Expected output:
-# Intake Quality Score: 45% (Grade: D)
-# ⚠ Missing critical field: time_horizon
-# 💡 Suggestion: Consider adding risk_appetite, kill_criteria
+# Test form-based intake parsing
+python -m runner.run --task inputs/example_intakes/minimal.md --check-intake-only
+# Expected: Quality score and field warnings
 
-# Test with Intake Agent
-python -m runner.run --intake inputs/example_intakes/partial.md --intake-agent
-# Expected: Interactive questions to gather missing context
+# Test conversational intake via Claude Code
+claude
+> /intake
+# Expected: Multi-turn conversation, document upload support
 
-# Test full flow
-python -m runner.run --intake inputs/example_intakes/complete.md
-# Verify: Enriched TaskInput passed to Orchestrator with quality metadata
+# Resume previous session
+> /intake --resume intake_20260205_001
+
+# Run pipeline from intake
+python -m runner.run --intake intake_20260205_001
+# Verify: task.md loaded, reference_materials available to agents
+```
+
+#### Phase 1G: Financial Data Layer (09_financial_data)
+**Dependencies:** Phase 1E (Pipeline must be functional)
+
+The 09_financial_data agent provides live market data to other agents via delegation. Inspired by the Dexter project's agentic tool routing pattern.
+
+**Deliverables:**
+- [ ] `charters/agents/09_financial_data.md` - Agent charter ✓ (created)
+- [ ] `runner/financial_data.py` - Data retrieval implementation
+- [ ] `skills/market_data.py` - API client abstraction
+  - [ ] Financial Modeling Prep (FMP) integration
+  - [ ] Polygon.io integration (fallback)
+  - [ ] Rate limiting and caching
+- [ ] Agentic tool routing (natural language → specific API calls)
+- [ ] Response normalization with source attribution
+- [ ] Integration with 06, 07, 08 agents (delegation pattern)
+- [ ] DuckDB logging for data request audit trail
+- [ ] Notebook: `06_phase1_financial_data.ipynb`
+
+**Capabilities:**
+| Capability | Data Points | API Source |
+|------------|-------------|------------|
+| Price Snapshot | Current price, volume, market cap | FMP/Polygon |
+| Historical Prices | OHLCV daily/weekly/monthly | FMP/Polygon |
+| Financial Statements | Income, balance sheet, cash flow (5yr) | FMP |
+| Key Metrics | P/E, EV/EBITDA, ROE, margins | FMP |
+| Analyst Estimates | EPS estimates, price targets | FMP |
+| SEC Filings | 10-K, 10-Q, 8-K retrieval | SEC EDGAR |
+| Insider Trading | Transactions, amounts, dates | FMP |
+
+**Delegation Pattern:**
+```
+07_fundamental needs data
+        │
+        ▼
+"Get NVDA income statement, ratios, analyst estimates (5 years)"
+        │
+        ▼
+09_financial_data routes to appropriate APIs
+        │
+        ▼
+Returns structured data with:
+- data: The financial information
+- source: "Financial Modeling Prep"
+- as_of: "2026-02-05T15:30:00Z"
+- confidence: "high"
+```
+
+**Validation Checkpoint:**
+```bash
+# Test data retrieval
+python -c "from runner.financial_data import get_price_snapshot; print(get_price_snapshot('AAPL'))"
+# Expected: Current price with source and timestamp
+
+# Test agent delegation
+python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md --max-agents 1 --agent 07_fundamental
+# Verify: 07_fundamental output includes data sourced from 09_financial_data
+# Verify: Data requests logged in DuckDB
 ```
 
 ---
@@ -3309,7 +3458,7 @@ python -m runner.run --intake inputs/example_intakes/complete.md
 ### Phase 2: Enhancement & Hardening
 
 #### Phase 2A: Skills Layer & Plotting
-**Dependencies:** Phase 1F
+**Dependencies:** Phase 1G
 
 **Deliverables:**
 - [ ] Structured extractors (assumptions, questions, conflicts)
@@ -4527,6 +4676,7 @@ DEFAULT_MAX_ITERATIONS=2
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | 2026-02-05 | **09_financial_data Agent & Conversational Intake System** — Added 09_financial_data agent (Section 1.3): Dexter-inspired data layer with agentic tool routing, live market data retrieval, source attribution for CoVe integration. Added Conversational Intake System (Section 1.3, Phase 1F): Chat-based task definition via Claude Code CLI (`/intake`), multi-session support, document processing (PDF, URL, Excel, images), reference materials flow to all agents. Updated architecture diagram to show dual entry points and data layer delegation pattern. Added Phase 1G for financial data implementation. Created `charters/intake_conversation.md` and `schemas/intake_session.py`. System now has 9 agents (8 reasoning + 1 data layer) plus intake system. |
 | 2.0 | 2026-02-03 | **Major Architecture Analysis & Gap Resolution** — Added Section 1.9: Orchestrator Charter with agent selection logic, synthesis protocol, iteration control, CoVe trigger rules, and stop conditions. Added Section 1.10: Agent Data Contracts with universal input schema and per-agent output schemas (SystemsOutput, InversionOutput, etc.) with required sections validation. Added Section 1.11: Agent Selection Matrix mapping objectives to required/conditional/skip agents. Added Section 1.12: Conflict Resolution Protocol with detection, classification, and resolution strategies. Added Section 1.13: Checkpoint & Resume Protocol for pipeline recovery. Added Section 1.14: Output Summarization Protocol for context management. Updated Phase 1D with Orchestrator implementation deliverables. Updated Phase 2A with output validation, summarization, document ingestion, and checkpoint skills. Added database tables: checkpoints, output_validations, conflicts. Added schemas/ directory for agent contracts. Updated Key Design Principles with chain of custody, fail-safe defaults, and resumability. |
 | 1.9 | 2026-02-03 | **Intake System** (Section 1.7): Added comprehensive Intake Form template with 7 sections and 20+ guided fields. Intake Agent charter for interactive context gathering. Intake Quality Score system with objective-specific field weighting. Objective-specific question sets (invest/build/explore/decide/invent). Pipeline integration with CLI flags (--intake, --intake-agent, --check-intake-only). Flexible approach: all fields optional with quality warnings. Phase 1F for intake implementation. |
 | 1.8 | 2026-02-03 | **Reporting Agent & Report Quality Standards** (Section 1.6): Added comprehensive Reporting Agent Charter with Amazon memo philosophy. Sell-side quality standards and enforcement. Full report template with required sections. Plotting skills specification (plotly/matplotlib, chart types, style guide). Report quality gate system with automated checks. Phase 2E for report quality implementation. Shippable report definition and criteria. |
@@ -4541,6 +4691,6 @@ DEFAULT_MAX_ITERATIONS=2
 
 ---
 
-*Document Version: 2.0*
-*Generated: 2026-02-03*
+*Document Version: 2.1*
+*Updated: 2026-02-05*
 *Status: Final Draft for Review*
