@@ -144,14 +144,50 @@ Based on screening criteria and user constraints, recommend these for fundamenta
 - **For Inversion:** [Sector-wide risks to consider]
 ```
 
+## Data Delegation to 09_financial_data
+
+For live market data, delegate to the **09_financial_data** agent:
+
+### When to Delegate
+
+| Data Need | Delegate Request |
+|-----------|------------------|
+| Market caps for universe | "Get market cap for [ticker list]" |
+| Sector/industry classification | "Get sector and industry for [ticker list]" |
+| Peer identification | "Get peer companies for [ticker] in [sector]" |
+| Revenue exposure verification | "Get segment revenue breakdown for [ticker]" |
+| Liquidity check | "Get average volume and market cap for [ticker list]" |
+
+### Delegation Protocol
+
+1. Identify data gaps in your screening process
+2. Formulate clear data request for 09_financial_data
+3. Receive structured data with source attribution
+4. Incorporate data into screening tables with source citation
+5. Flag any data unavailability in caveats section
+
+### Example Delegation
+
+```
+Request to 09_financial_data:
+"Get market cap, sector, and average daily volume for these semiconductor companies: NVDA, AMD, INTC, AVGO, QCOM, MRVL, MU"
+
+Response includes:
+- Market cap figures with as-of date
+- Sector/industry classification
+- Volume metrics
+- Source attribution for each data point
+```
+
 ## Screening Workflow
 
 1. **Define Universe** - Start broad based on sector/theme
-2. **Apply Hard Filters** - User constraints (market cap, geography, etc.)
-3. **Classify Exposure** - Pure-play vs diversified
-4. **Assess Quality** - Liquidity, trading status, data availability
-5. **Create Shortlist** - Top candidates for deep-dive
-6. **Document Exclusions** - Why others were dropped
+2. **Delegate to 09_financial_data** - Retrieve market data for universe candidates
+3. **Apply Hard Filters** - User constraints (market cap, geography, etc.)
+4. **Classify Exposure** - Pure-play vs diversified (use segment data from 09)
+5. **Assess Quality** - Liquidity, trading status, data availability
+6. **Create Shortlist** - Top candidates for deep-dive
+7. **Document Exclusions** - Why others were dropped
 
 ## Thinking Approach
 

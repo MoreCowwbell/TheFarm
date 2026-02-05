@@ -8,7 +8,7 @@
 
 ## Current Capabilities
 
-The system employs **8 specialized agents** organized into three categories:
+The system employs **9 specialized agents** organized into four categories:
 
 ### Strategic Reasoning Agents (01-04)
 | Agent | Primary Focus | Key Outputs |
@@ -24,6 +24,13 @@ The system employs **8 specialized agents** organized into three categories:
 | **06 Sector Screener** | Ticker identification, competitive landscape | List of relevant tickers, market cap tiers, sector positioning |
 | **07 Fundamental Analyst** | Valuation, financial statements, earnings quality | P/E, EV/EBITDA, DCF range, balance sheet risks |
 | **08 Technical Analyst** | Price action, chart patterns, momentum | Trend direction, support/resistance, RSI/MACD signals |
+
+### Data Layer Agent (09)
+| Agent | Primary Focus | Key Outputs |
+|-------|---------------|-------------|
+| **09 Financial Data** | Live market data retrieval, API integration | Price snapshots, financial statements, ratios, SEC filings |
+
+**Note:** 09_financial_data is a subagent that other agents (06, 07, 08, CoVe) delegate to for live data retrieval. It does not perform analysis - only data retrieval with source attribution.
 
 ### Meta Agents (05)
 | Agent | Primary Focus | Key Outputs |
@@ -51,7 +58,8 @@ TheFarm/
 │   ├── orchestrator.md    # Orchestrator charter
 │   ├── reporting.md       # Report generation charter
 │   ├── intake.md          # Intake Agent charter
-│   ├── agents/            # 8 specialized agent charters (01-08)
+│   ├── agents/            # 9 specialized agent charters (01-09)
+│   │   └── 09_financial_data.md  # Data layer subagent (Dexter-inspired)
 │   └── cove/              # CoVe verification agents
 ├── skills/
 │   ├── plotting.py        # Publication-quality charts
@@ -84,18 +92,23 @@ USER INPUT (task_template.md)
         ▼
    PARALLEL PASS
    - Strategic Agents (01-04)
-   - Screener (06) if equity task
-   - Epistemic (05)
-        │
-        ▼
-   ORCHESTRATOR SYNTHESIS
-   - Conflict resolution
-   - Ticker shortlist (if equity)
-        │
-        ▼
-   SEQUENTIAL DEEP-DIVE
-   - Per-ticker: Fundamental (07) + Technical (08)
-   - Inversion (02) + Epistemic (05) follow-up
+   - Screener (06) if equity task ──────┐
+   - Epistemic (05)                     │
+        │                               │
+        ▼                               ▼
+   ORCHESTRATOR SYNTHESIS          09_FINANCIAL_DATA
+   - Conflict resolution           (Data Layer Subagent)
+   - Ticker shortlist (if equity)  - Live market data
+        │                          - Financial statements
+        ▼                          - SEC filings
+   SEQUENTIAL DEEP-DIVE            - Analyst estimates
+   - Fundamental (07) ─────────────────┤
+   - Technical (08) ───────────────────┤
+   - Inversion (02) + Epistemic (05)   │
+        │                               │
+        ▼                               │
+   COVE VERIFICATION ──────────────────┘
+   - Verifier delegates to 09 for data
         │
         ▼
    REPORTING AGENT
@@ -108,6 +121,8 @@ USER INPUT (task_template.md)
    - DuckDB ledger entry
    - Final memo with ranked recommendations
 ```
+
+**Data Layer Note:** 09_financial_data is not directly invoked by the Orchestrator. Instead, agents 06, 07, 08, and CoVe_verifier delegate to it when they need live market data. This ensures data accuracy, source attribution, and efficient API usage through caching.
 
 ## Data and Storage Details
 
@@ -165,11 +180,12 @@ python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 ## Known Gaps and Watchouts
 
 - **CoVe (Chain of Verification)** agents are defined but integration may be incomplete
-- Market data providers (Phase 3) not yet implemented
+- **09_financial_data** charter is defined; API integration (FMP/Polygon.io) pending implementation
 - Web search integration (Phase 3) not yet implemented
 - Keep README in sync with the actual package layout after changes
 - Extended thinking mode uses significant tokens—monitor costs
 - Per-ticker iteration can multiply agent calls rapidly
+- 09_financial_data API calls should be cached within a run to avoid duplicate requests
 
 ## Tips for Future Contributors
 
