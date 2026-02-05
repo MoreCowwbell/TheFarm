@@ -23,25 +23,87 @@ Select agents based on objective type:
 ### INVEST Objective
 - **Required:** 01_systems, 02_inversion, 03_allocator, 05_epistemic
 - **Conditional:** 06_screener (if stocks/equity mentioned), 07_fundamental (per ticker), 08_technical (per ticker), 04_incentives (if stakeholders mentioned)
+- **Data Layer:** 09_financial_data (invoked by 06, 07, 08 as needed for live data)
 
 ### BUILD Objective
 - **Required:** 01_systems, 02_inversion, 05_epistemic
 - **Conditional:** 04_incentives (if stakeholders/politics mentioned)
-- **Skip:** 03_allocator, 06-08 (equity agents)
+- **Skip:** 03_allocator, 06-08 (equity agents), 09_financial_data
 
 ### EXPLORE Objective
 - **Required:** 01_systems, 05_epistemic
 - **Conditional:** 02_inversion (if risks requested), 04_incentives (if stakeholders mentioned)
-- **Skip:** 03_allocator, 06-08 (equity agents)
+- **Skip:** 03_allocator, 06-08 (equity agents), 09_financial_data
 
 ### DECIDE Objective
 - **Required:** 01_systems, 02_inversion, 03_allocator, 04_incentives, 05_epistemic
-- **Skip:** 06-08 (equity agents)
+- **Skip:** 06-08 (equity agents), 09_financial_data
 
 ### INVENT Objective
 - **Required:** 01_systems, 02_inversion, 05_epistemic
 - **Conditional:** 04_incentives (if market dynamics relevant)
-- **Skip:** 03_allocator, 06-08 (equity agents)
+- **Skip:** 03_allocator, 06-08 (equity agents), 09_financial_data
+
+## Data Layer Architecture
+
+**09_financial_data** is a specialized subagent that provides live market data to other agents. It is NOT invoked directly by the Orchestrator, but rather delegated to by:
+
+| Requesting Agent | Delegates to 09 For |
+|------------------|---------------------|
+| 06_screener | Peer lists, market caps, sector data for universe building |
+| 07_fundamental | Financial statements, ratios, analyst estimates for valuation |
+| 08_technical | Price history, volume data for chart analysis |
+| CoVe_verifier | SEC filing data for claim verification |
+| 04_incentives | Insider trading data for incentive mapping |
+
+**Delegation Protocol:**
+1. Requesting agent identifies data need
+2. Agent formulates natural language data request
+3. 09_financial_data retrieves and normalizes data
+4. Data returned with source attribution and freshness metadata
+5. Requesting agent proceeds with analysis using retrieved data
+
+## Reference Materials Integration
+
+When pipeline runs from an intake session (`--intake <intake_id>`), reference materials are available to all agents.
+
+### Reference Materials Flow
+
+```
+Intake Session: data/intakes/<intake_id>/
+├── task.md                    → Primary input to Orchestrator
+└── reference_materials/
+    ├── manifest.json          → Document inventory with summaries
+    ├── originals/             → Original files (PDFs, etc.)
+    └── processed/             → Extracted text/data
+```
+
+### How Agents Receive Reference Materials
+
+1. **Orchestrator** loads `manifest.json` at pipeline start
+2. For each agent call, Orchestrator includes relevant document summaries in context
+3. Agents can request full document content if needed for deep analysis
+4. Document usage is tracked in DuckDB for audit trail
+
+### Document Routing by Agent Type
+
+| Agent | Relevant Document Types | How Materials Are Used |
+|-------|-------------------------|------------------------|
+| **01_systems** | Industry reports, market analysis | System/market context |
+| **02_inversion** | Risk assessments, negative news, lawsuits | Failure mode identification |
+| **04_incentives** | Insider filings, proxy statements | Stakeholder incentive mapping |
+| **06_screener** | Competitor lists, sector reports | Universe building |
+| **07_fundamental** | Earnings calls, 10-Ks, financial models | Valuation inputs |
+| **08_technical** | Price charts, technical reports | Pattern context |
+| **05_epistemic** | All documents | Assumption validation |
+| **CoVe_verifier** | Official filings, source documents | Claim verification |
+
+### Orchestrator Responsibilities
+
+- Parse `manifest.json` and extract document summaries
+- Include relevant summaries in each agent's context
+- Track which documents each agent referenced
+- Log document usage in `agent_calls` table
 
 ## Synthesis Protocol
 
@@ -163,7 +225,10 @@ Automatically trigger CoVe verification for:
 | 06_screener | No | Outputs lists, not claims |
 | 07_fundamental | Yes | Valuation figures, financial ratios, price targets |
 | 08_technical | No | Levels derived from data |
+| 09_financial_data | No | Data retrieval only; source attribution included |
 | reporting | Yes | Always before final ship |
+
+**Note on 09_financial_data:** This agent provides data with source attribution. CoVe verification applies to claims made BY OTHER AGENTS using this data, not to the raw data itself. CoVe_verifier may delegate to 09_financial_data to retrieve authoritative data for verification purposes.
 
 ## Conflict Resolution
 

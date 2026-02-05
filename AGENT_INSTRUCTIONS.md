@@ -86,7 +86,8 @@ db.execute("INSERT INTO runs (run_id, task_path) VALUES (?, ?)", [run_id, task_p
 
 ## Environment and Safety
 - Required env vars: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
-- Optional: `POLYGON_API_KEY`, `BRAVE_SEARCH_API_KEY`, Schwab OAuth credentials
+- Optional for 09_financial_data: `FMP_API_KEY` (Financial Modeling Prep) or `POLYGON_API_KEY` (Polygon.io)
+- Optional for web search: `BRAVE_SEARCH_API_KEY`, Schwab OAuth credentials
 - Never commit `.env` files or API keys
 - Use `MAX_COST_PER_RUN_USD` to prevent runaway costs
 
@@ -95,6 +96,7 @@ db.execute("INSERT INTO runs (run_id, task_path) VALUES (?, ?)", [run_id, task_p
 **Model assignment per agent:**
 | Agent | Model | Thinking Mode | Rationale |
 |-------|-------|---------------|-----------|
+| Intake Conversation | Opus 4.5 | Extended | Complex dialogue, synthesis, document analysis |
 | Orchestrator | Opus 4.5 | Extended | Complex synthesis, conflict resolution |
 | 01 Systems | Opus 4.5 | Extended | Causal chain reasoning |
 | 02 Inversion | Opus 4.5 | Extended | Failure mode exploration |
@@ -104,6 +106,7 @@ db.execute("INSERT INTO runs (run_id, task_path) VALUES (?, ?)", [run_id, task_p
 | 06 Screener | Sonnet 4 | Standard | Structured search |
 | 07 Fundamental | Opus 4.5 | Extended | Complex valuation reasoning |
 | 08 Technical | Sonnet 4 | Standard | Rule-based pattern recognition |
+| 09 Financial Data | Sonnet 4 | Standard | Structured data retrieval, agentic routing |
 | Reporting | Sonnet 4 | Standard | Narrative synthesis from existing content |
 
 ## PATH and Directories

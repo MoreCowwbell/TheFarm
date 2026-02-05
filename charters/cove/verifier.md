@@ -114,12 +114,42 @@ caveats:
 
 ## Data Source Priority
 
-Use these sources in order of preference:
+Use **09_financial_data** as your primary data retrieval mechanism. It provides structured data with source attribution.
+
+### Delegation to 09_financial_data
+
+For financial data verification, delegate to 09_financial_data:
+
+| Verification Need | Delegate Request |
+|-------------------|------------------|
+| Price verification | "Get current price for [ticker]" |
+| P/E verification | "Get P/E ratio and EPS for [ticker]" |
+| Revenue verification | "Get [ticker] revenue from latest 10-K" |
+| Financial ratio verification | "Get [specific ratio] for [ticker]" |
+| Filing data verification | "Get [specific data point] from [ticker] [filing type]" |
+
+### Example Delegation for Verification
+
+```
+Claim: "NVDA's P/E ratio is 45.2x"
+
+Delegation to 09_financial_data:
+"Get NVDA current price and trailing twelve-month EPS"
+
+Response:
+- Price: $875.50 (source: Polygon.io, as of 2026-02-05)
+- TTM EPS: $19.25 (source: Latest 10-K)
+- Calculated P/E: 45.5x
+
+Verdict: Partially Supported (within tolerance)
+```
+
+### Source Priority (via 09_financial_data)
 
 | Priority | Source | Use For |
 |----------|--------|---------|
-| 1 | Polygon.io | Prices, quotes, fundamentals |
-| 2 | SEC Filings | Financial statements, official data |
+| 1 | 09_financial_data → API | Prices, quotes, fundamentals, ratios |
+| 2 | 09_financial_data → SEC Filings | Financial statements, official data |
 | 3 | Company IR | Press releases, guidance |
 | 4 | Brave/Serper | News, recent developments |
 | 5 | General search | Background, context |
