@@ -29,7 +29,30 @@ Format:
 ---
 ## Start of Changelog below:
 
-## 2026-02-05 — Session Summary (Claude Code)
+## 2026-02-05 — Session Summary (Claude Code) - Part 2
+- [x] Created Conversational Intake System:
+  - `charters/intake_conversation.md` - Full charter for conversational intake via Claude Code CLI
+  - Multi-session support (explore → refine → document → confirm → complete)
+  - Document processing capabilities (PDF, URL, Excel, images, folders)
+  - Reference materials flow to all downstream agents
+- [x] Created `schemas/intake_session.py` - Pydantic models for:
+  - Session state management (SessionState, SessionMetadata, IntakeSession)
+  - Document processing (ProcessedDocument, DocumentManifest)
+  - Conversation tracking (ConversationTurn, ConversationHighlight)
+  - Task output generation (TaskOutput with to_markdown())
+- [x] Updated `AGENT_CONTEXT.md`:
+  - Added Intake Conversation Agent to agent table
+  - Updated directory layout with intakes/ folder structure
+  - Updated execution flow diagram showing dual entry points
+  - Added intake CLI options
+- [x] Updated `AGENT_INSTRUCTIONS.md`:
+  - Added Intake Conversation to model config (Opus 4.5, Extended)
+- [x] Updated `orchestrator.md`:
+  - Added Reference Materials Integration section
+  - Document routing by agent type table
+  - Manifest parsing and tracking responsibilities
+
+## 2026-02-05 — Session Summary (Claude Code) - Part 1
 - [x] Created `09_financial_data.md` charter - new data layer subagent inspired by Dexter project
   - Agentic tool routing pattern for natural language → API calls
   - Financial statements, price data, ratios, analyst estimates, SEC filings

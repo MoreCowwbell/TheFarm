@@ -63,6 +63,48 @@ Select agents based on objective type:
 4. Data returned with source attribution and freshness metadata
 5. Requesting agent proceeds with analysis using retrieved data
 
+## Reference Materials Integration
+
+When pipeline runs from an intake session (`--intake <intake_id>`), reference materials are available to all agents.
+
+### Reference Materials Flow
+
+```
+Intake Session: data/intakes/<intake_id>/
+├── task.md                    → Primary input to Orchestrator
+└── reference_materials/
+    ├── manifest.json          → Document inventory with summaries
+    ├── originals/             → Original files (PDFs, etc.)
+    └── processed/             → Extracted text/data
+```
+
+### How Agents Receive Reference Materials
+
+1. **Orchestrator** loads `manifest.json` at pipeline start
+2. For each agent call, Orchestrator includes relevant document summaries in context
+3. Agents can request full document content if needed for deep analysis
+4. Document usage is tracked in DuckDB for audit trail
+
+### Document Routing by Agent Type
+
+| Agent | Relevant Document Types | How Materials Are Used |
+|-------|-------------------------|------------------------|
+| **01_systems** | Industry reports, market analysis | System/market context |
+| **02_inversion** | Risk assessments, negative news, lawsuits | Failure mode identification |
+| **04_incentives** | Insider filings, proxy statements | Stakeholder incentive mapping |
+| **06_screener** | Competitor lists, sector reports | Universe building |
+| **07_fundamental** | Earnings calls, 10-Ks, financial models | Valuation inputs |
+| **08_technical** | Price charts, technical reports | Pattern context |
+| **05_epistemic** | All documents | Assumption validation |
+| **CoVe_verifier** | Official filings, source documents | Claim verification |
+
+### Orchestrator Responsibilities
+
+- Parse `manifest.json` and extract document summaries
+- Include relevant summaries in each agent's context
+- Track which documents each agent referenced
+- Log document usage in `agent_calls` table
+
 ## Synthesis Protocol
 
 After parallel pass, synthesize outputs:

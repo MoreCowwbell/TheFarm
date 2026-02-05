@@ -37,6 +37,13 @@ The system employs **9 specialized agents** organized into four categories:
 |-------|---------------|-------------|
 | **05 Epistemic Reality Check** | Knowledge vs assumptions, confidence calibration | Know/assume/speculate table, overconfidence flags |
 
+### Intake System
+| Component | Primary Focus | Key Outputs |
+|-----------|---------------|-------------|
+| **Intake Conversation Agent** | Conversational task definition, document processing | task.md, reference_materials/, session transcript |
+
+**Note:** The Intake Conversation Agent runs via Claude Code CLI (`/intake`). It has a natural conversation with the user to understand their research question, processes any documents they provide, and outputs a structured task file. Multi-session support allows users to refine their intake over time.
+
 ## Where Things Live (intended layout)
 
 ```
@@ -57,7 +64,8 @@ TheFarm/
 ├── charters/
 │   ├── orchestrator.md    # Orchestrator charter
 │   ├── reporting.md       # Report generation charter
-│   ├── intake.md          # Intake Agent charter
+│   ├── intake.md          # Legacy intake form charter
+│   ├── intake_conversation.md  # Conversational intake charter (primary)
 │   ├── agents/            # 9 specialized agent charters (01-09)
 │   │   └── 09_financial_data.md  # Data layer subagent (Dexter-inspired)
 │   └── cove/              # CoVe verification agents
@@ -68,7 +76,8 @@ TheFarm/
 │   ├── summarization.py
 │   └── document_ingestion.py
 ├── schemas/
-│   └── agent_outputs.py   # Per-agent Pydantic models
+│   ├── agent_outputs.py   # Per-agent Pydantic models
+│   └── intake_session.py  # Intake session, document, and task schemas
 ├── notebooks/             # Development & validation notebooks
 ├── inputs/
 │   ├── task_template.md
@@ -76,13 +85,36 @@ TheFarm/
 │   └── example_tasks/
 └── data/
     ├── runs/<run_id>/     # Per-run artifacts (outside Dropbox!)
+    ├── intakes/<intake_id>/  # Intake session storage
+    │   ├── transcript.jsonl  # Conversation history
+    │   ├── session_meta.json # Session state and metadata
+    │   ├── task.md           # Generated task file
+    │   ├── intake_summary.md # Key conversation highlights
+    │   └── reference_materials/  # User-provided documents
+    │       ├── originals/    # Original uploaded files
+    │       ├── processed/    # Extracted/converted versions
+    │       └── manifest.json # Document inventory
     └── ledger.duckdb      # Audit ledger
 ```
 
 ## Execution Flow (per run)
 
 ```
-USER INPUT (task_template.md)
+                    ┌─────────────────────────────────────┐
+                    │         ENTRY OPTIONS               │
+                    ├─────────────────────────────────────┤
+                    │  Option A: Direct Task File         │
+                    │  python -m runner.run --task X.md   │
+                    │                                     │
+                    │  Option B: Conversational Intake    │
+                    │  claude → /intake                   │
+                    │  (multi-turn conversation)          │
+                    │  → generates task.md + ref_materials│
+                    │  python -m runner.run --intake ID   │
+                    └─────────────────────────────────────┘
+                                    │
+                                    ▼
+USER INPUT (task.md + reference_materials/)
         │
         ▼
    ORCHESTRATOR
@@ -162,14 +194,23 @@ cp .env.example .env  # Add API keys
 python -m runner.run --task inputs/example_tasks/ai_gpu_optics.md
 ```
 
-**CLI Options:**
+**CLI Options (Pipeline):**
 ```bash
---task PATH           # Required: path to task file
+--task PATH           # Path to task file (direct mode)
+--intake <intake_id>  # Run from intake session (loads task.md + ref_materials)
 --run-id ID           # Optional: custom run ID
 --max-iterations N    # Default: 2
 --parallel-only       # Debug: stop after parallel pass
 --resume <run_id>     # Resume from checkpoint
 --no-db               # Skip database logging
+```
+
+**CLI Options (Intake via Claude Code):**
+```bash
+claude                # Start Claude Code
+> /intake             # Begin new intake conversation
+> /intake --resume <intake_id>   # Resume previous session
+> /intake --list      # List all intake sessions
 ```
 
 **Environment Variables (Required):**

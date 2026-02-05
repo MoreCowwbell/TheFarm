@@ -96,6 +96,7 @@ db.execute("INSERT INTO runs (run_id, task_path) VALUES (?, ?)", [run_id, task_p
 **Model assignment per agent:**
 | Agent | Model | Thinking Mode | Rationale |
 |-------|-------|---------------|-----------|
+| Intake Conversation | Opus 4.5 | Extended | Complex dialogue, synthesis, document analysis |
 | Orchestrator | Opus 4.5 | Extended | Complex synthesis, conflict resolution |
 | 01 Systems | Opus 4.5 | Extended | Causal chain reasoning |
 | 02 Inversion | Opus 4.5 | Extended | Failure mode exploration |
