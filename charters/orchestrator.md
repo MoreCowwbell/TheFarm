@@ -22,8 +22,32 @@ Select agents based on objective type:
 
 ### INVEST Objective
 - **Required:** 01_systems, 02_inversion, 03_allocator, 05_epistemic
-- **Conditional:** 06_screener (if stocks/equity mentioned), 07_fundamental (per ticker), 08_technical (per ticker), 04_incentives (if stakeholders mentioned)
-- **Data Layer:** 09_financial_data (invoked by 06, 07, 08 as needed for live data)
+- **Conditional:** 06_screener (if stocks/equity mentioned), 07_fundamental (per ticker), 08_technical (per ticker), 04_incentives (if stakeholders mentioned), 10_equity_intel (for quick company briefs per ticker), 11_earnings_intel (if recent earnings for tickers in universe)
+- **Data Layer:** 09_financial_data (invoked by 06, 07, 08, 10, 11 as needed for live data)
+
+### EQUITY_BRIEF Objective
+- **Required:** 10_equity_intel
+- **Conditional:** 05_epistemic
+- **Data Layer:** 09_financial_data (invoked by 10)
+- **Use Case:** Rapid single-company intelligence brief. User asks "Tell me about [TICKER]" or "Give me an overview of [COMPANY]."
+
+### EARNINGS_ANALYSIS Objective
+- **Required:** 11_earnings_intel
+- **Conditional:** 07_fundamental (for context), 08_technical (for post-earnings chart context)
+- **Data Layer:** 09_financial_data (invoked by 11)
+- **Use Case:** Post-earnings analysis. User asks "Analyze [TICKER]'s latest earnings" or "What happened with [TICKER]'s Q[X] report?"
+
+### SECTOR_COMPARISON Objective
+- **Required:** 06_screener (mode: sector_matrix)
+- **Conditional:** 07_fundamental (mode: forensic_audit, per ticker), 02_inversion
+- **Data Layer:** 09_financial_data (invoked by 06)
+- **Use Case:** Multi-company comparison. User asks "Compare [TICKER1] vs [TICKER2] vs [TICKER3]" or "Who's the best in [SECTOR]?"
+
+### FORENSIC_AUDIT Objective
+- **Required:** 07_fundamental (mode: forensic_audit)
+- **Conditional:** 02_inversion, 05_epistemic
+- **Data Layer:** 09_financial_data (invoked by 07)
+- **Use Case:** Deep financial statement analysis. User asks "Audit [TICKER]'s financials" or "Is [COMPANY] financially healthy?"
 
 ### BUILD Objective
 - **Required:** 01_systems, 02_inversion, 05_epistemic
@@ -51,9 +75,13 @@ Select agents based on objective type:
 | Requesting Agent | Delegates to 09 For |
 |------------------|---------------------|
 | 06_screener | Peer lists, market caps, sector data for universe building |
+| 06_screener (matrix mode) | Full metrics set, sector KPIs, market share data for multi-company comparison |
 | 07_fundamental | Financial statements, ratios, analyst estimates for valuation |
+| 07_fundamental (forensic mode) | 8 quarters of statements, AR/inventory detail, debt maturity, goodwill, competitor metrics |
 | 08_technical | Price history, volume data for chart analysis |
-| CoVe_verifier | SEC filing data for claim verification |
+| 10_equity_intel | Company profile, metrics, analyst ratings, institutional holdings, relative performance |
+| 11_earnings_intel | Earnings release data, transcripts, estimates, surprises, post-earnings price/revisions |
+| CoVe_verifier | SEC filing data, transcripts for claim and quote verification |
 | 04_incentives | Insider trading data for incentive mapping |
 
 **Delegation Protocol:**
@@ -223,9 +251,13 @@ Automatically trigger CoVe verification for:
 | 04_incentives | No | Only on explicit request |
 | 05_epistemic | No | Self-verifying meta-agent |
 | 06_screener | No | Outputs lists, not claims |
+| 06_screener (matrix) | Yes | Market share claims, moat width classifications, strategic rankings |
 | 07_fundamental | Yes | Valuation figures, financial ratios, price targets |
+| 07_fundamental (forensic) | Yes | Risk/strength indicator scores, forensic verdict, competitive benchmarking |
 | 08_technical | No | Levels derived from data |
 | 09_financial_data | No | Data retrieval only; source attribution included |
+| 10_equity_intel | Yes | All financial metrics, analyst sentiment figures, institutional holdings data |
+| 11_earnings_intel | Yes | Beat/miss figures, guidance numbers, management quotes (highest priority for quote verification) |
 | reporting | Yes | Always before final ship |
 
 **Note on 09_financial_data:** This agent provides data with source attribution. CoVe verification applies to claims made BY OTHER AGENTS using this data, not to the raw data itself. CoVe_verifier may delegate to 09_financial_data to retrieve authoritative data for verification purposes.

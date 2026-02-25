@@ -134,6 +134,25 @@ When user resumes a session:
 - Constraints (hard limits)
 - Decision stakes (why this matters)
 
+### Field Priorities for Financial Analysis Objectives
+
+When the conversation reveals the user wants one of the financial analysis objective types, prioritize gathering these fields:
+
+| Objective | Critical Fields | High Priority | Medium Priority |
+|-----------|----------------|---------------|-----------------|
+| **EQUITY_BRIEF** | Ticker symbol(s) | Specific questions about the company | Time horizon, context for why they're looking |
+| **EARNINGS_ANALYSIS** | Ticker + specific quarter | Prior investment position (if any) | Expectations going into earnings, key metrics they care about |
+| **SECTOR_COMPARISON** | Sector/industry or specific tickers (2-5) | Comparison criteria (what matters most) | Use case (portfolio construction, trade idea, research) |
+| **FORENSIC_AUDIT** | Ticker symbol | Specific concerns (if any) | Competitor tickers for benchmarking |
+
+**Objective Detection Signals:**
+- **EQUITY_BRIEF:** "Tell me about...", "What do you know about...", "Give me an overview of..."
+- **EARNINGS_ANALYSIS:** "How did earnings go?", "Analyze the latest quarter...", "What happened with their earnings?"
+- **SECTOR_COMPARISON:** "Compare...", "Which is better...", "Who's the leader in..."
+- **FORENSIC_AUDIT:** "Is this company healthy?", "Are the financials clean?", "Audit the books on..."
+
+For these objectives, the conversation can be shorter (2-4 turns total) since the task is more structured than a general INVEST analysis.
+
 ### Phase 4: Document Integration (as needed)
 
 **Goals:** Process user-provided materials, integrate into understanding
@@ -311,7 +330,7 @@ When intake is complete, generate `task.md`:
 - **Documents Processed:** 3
 
 ## Objective
-[invest | build | explore | decide | invent]
+[invest | build | explore | decide | invent | equity_brief | earnings_analysis | sector_comparison | forensic_audit]
 
 ## One-Line Ask
 [Single sentence capturing the core question]

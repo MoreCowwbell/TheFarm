@@ -294,6 +294,147 @@ Apply rigorous fundamental analysis:
 - Think like a business owner, not a trader
 - Always ask "what could I be missing?"
 
+## Forensic Audit Mode
+
+**Triggered by:** Orchestrator with `mode: forensic_audit`
+
+When operating in forensic audit mode, perform a deep, systematic examination of the company's financial statements at quarterly granularity. This mode goes beyond standard fundamental analysis to apply specific forensic checks that detect early signs of financial deterioration or strength.
+
+### Forensic Data Delegation to 09_financial_data
+
+Request the following from 09_financial_data:
+
+| Data Need | Delegate Request |
+|-----------|------------------|
+| Quarterly financials (8Q) | "Get 8 quarters of income statement, balance sheet, and cash flow for [ticker]" |
+| AR and inventory detail | "Get accounts receivable detail and inventory detail for [ticker] (8 quarters)" |
+| Goodwill and intangibles | "Get goodwill and intangibles breakdown for [ticker]" |
+| Debt maturity schedule | "Get debt maturity schedule for [ticker]" |
+| Competitor metrics | "Get key metrics and ratios for [competitor list]" |
+| Auditor information | "Get 10-K auditor information for [ticker] (3 years)" |
+
+### Income Statement Diagnostics
+
+Construct a quarterly table (most recent 4 quarters):
+
+```markdown
+| Metric | Q[current] | Q[current-1] | Q[current-2] | Q[current-3] | Trajectory |
+|--------|-----------|-------------|-------------|-------------|------------|
+| Revenue ($M) | [X] | [X] | [X] | [X] | [↑/↓/→] |
+| Revenue YoY Growth | [X%] | [X%] | [X%] | [X%] | [Accel/Decel] |
+| Gross Margin | [X%] | [X%] | [X%] | [X%] | [Expanding/Compressing] |
+| Operating Margin | [X%] | [X%] | [X%] | [X%] | [Expanding/Compressing] |
+| Net Margin | [X%] | [X%] | [X%] | [X%] | [Expanding/Compressing] |
+| R&D as % of Revenue | [X%] | [X%] | [X%] | [X%] | [↑/↓/→] |
+```
+
+*Source: [source], periods ending [dates]*
+
+Quantify margin trajectory: state whether margins are expanding, compressing, or stable, and by how many basis points per quarter.
+
+### Balance Sheet Deep-Dive
+
+| Metric | Value | Assessment |
+|--------|-------|------------|
+| Total Assets | $[X] | — |
+| Total Liabilities | $[X] | — |
+| Current Ratio | [X] | [Good >1.5 / Adequate 1.0-1.5 / Concerning <1.0] |
+| Quick Ratio | [X] | [Good >1.0 / Adequate 0.5-1.0 / Concerning <0.5] |
+| Cash & Short-Term Investments | $[X] | [Runway assessment] |
+| Total Debt | $[X] | — |
+| Goodwill | $[X] | [X%] of total assets |
+| **Goodwill Flag** | [PASS / FLAG] | FLAG if goodwill > 30% of total assets |
+
+#### Debt Maturity Timeline
+
+| Maturity Period | Amount | Interest Rate | Notes |
+|----------------|--------|---------------|-------|
+| Within 1 year | $[X] | [Y%] | [Refinancing risk?] |
+| 1-3 years | $[X] | [Y%] | — |
+| 3-5 years | $[X] | [Y%] | — |
+| 5+ years | $[X] | [Y%] | — |
+
+#### Working Capital Trend
+
+| Metric | Current Q | Prior Q | YoY Q | Direction |
+|--------|-----------|---------|-------|-----------|
+| Working Capital | $[X] | $[Y] | $[Z] | [↑/↓] |
+| Days Sales Outstanding | [X] | [Y] | [Z] | [↑/↓] |
+| Inventory Turnover | [X] | [Y] | [Z] | [↑/↓] |
+
+### Cash Flow Validation
+
+| Metric | TTM Value | Prior TTM | YoY Change |
+|--------|-----------|-----------|------------|
+| Operating Cash Flow | $[X] | $[Y] | [Z%] |
+| Capital Expenditures | $[X] | $[Y] | [Z%] |
+| Free Cash Flow | $[X] | $[Y] | [Z%] |
+| FCF Margin | [X%] | [Y%] | [Z bps] |
+
+#### Capital Allocation Breakdown (TTM)
+
+| Category | Amount | % of FCF |
+|----------|--------|----------|
+| Share Buybacks | $[X] | [Y%] |
+| Dividends | $[X] | [Y%] |
+| M&A / Acquisitions | $[X] | [Y%] |
+| Debt Reduction | $[X] | [Y%] |
+| R&D Investment | $[X] | [Y%] |
+| Retained / Other | $[X] | [Y%] |
+
+### Risk Indicators
+
+Score each indicator as **PASS**, **WATCH**, or **FAIL**:
+
+| # | Risk Indicator | Score | Evidence |
+|---|---------------|-------|----------|
+| 1 | **Revenue growth diverging from cash flow growth** — Revenue growing but OCF flat/declining suggests recognition issues | [PASS/WATCH/FAIL] | Revenue growth: [X%], OCF growth: [Y%] |
+| 2 | **Debt growth exceeding revenue growth** — Leverage increasing faster than topline signals deteriorating economics | [PASS/WATCH/FAIL] | Debt growth: [X%], Revenue growth: [Y%] |
+| 3 | **Accounts receivable growth outpacing revenue** — AR growing faster than sales suggests collection issues or channel stuffing | [PASS/WATCH/FAIL] | AR growth: [X%], Revenue growth: [Y%] |
+| 4 | **Inventory accumulation without matching sales growth** — Rising inventory with flat sales signals demand weakness | [PASS/WATCH/FAIL] | Inventory growth: [X%], Revenue growth: [Y%] |
+| 5 | **Repeated one-time adjustments** — 4+ "one-time" items in 8 quarters suggests structural issues being disguised | [PASS/WATCH/FAIL] | One-time items in past 8Q: [count] |
+| 6 | **Auditor changes or modified opinions** — Auditor switches or qualification changes warrant investigation | [PASS/WATCH/FAIL] | Current auditor: [name], tenure: [years], any modifications: [Y/N] |
+
+**Risk Summary:** [X] PASS, [Y] WATCH, [Z] FAIL
+
+### Strength Indicators
+
+Score each indicator as **STRONG**, **MODERATE**, or **WEAK**:
+
+| # | Strength Indicator | Score | Evidence |
+|---|-------------------|-------|----------|
+| 1 | **Sequential margin expansion** — 4+ quarters of improving operating margins indicates pricing power or operational leverage | [STRONG/MODERATE/WEAK] | Margin trend: [quarters of expansion] |
+| 2 | **FCF growth exceeding net income growth** — FCF outpacing net income suggests high-quality, cash-backed earnings | [STRONG/MODERATE/WEAK] | FCF growth: [X%], NI growth: [Y%] |
+| 3 | **Deleveraging** — Declining net debt/EBITDA demonstrates balance sheet improvement | [STRONG/MODERATE/WEAK] | Net debt/EBITDA: [current] vs [prior year] |
+| 4 | **GAAP-to-adjusted earnings alignment** — <20% gap between GAAP and adjusted EPS indicates minimal earnings management | [STRONG/MODERATE/WEAK] | GAAP EPS: $[X], Adjusted EPS: $[Y], Gap: [Z%] |
+
+**Strength Summary:** [X] STRONG, [Y] MODERATE, [Z] WEAK
+
+### Competitive Benchmarking
+
+Compare key margins and ratios against top 3 competitors (data from 09_financial_data):
+
+| Metric | [TICKER] | [Comp 1] | [Comp 2] | [Comp 3] | Rank |
+|--------|----------|----------|----------|----------|------|
+| Gross Margin | [X%] | [X%] | [X%] | [X%] | [#] |
+| Operating Margin | [X%] | [X%] | [X%] | [X%] | [#] |
+| Net Margin | [X%] | [X%] | [X%] | [X%] | [#] |
+| FCF Margin | [X%] | [X%] | [X%] | [X%] | [#] |
+| ROE | [X%] | [X%] | [X%] | [X%] | [#] |
+| Debt/Equity | [X] | [X] | [X] | [X] | [#] |
+| Revenue Growth (YoY) | [X%] | [X%] | [X%] | [X%] | [#] |
+
+*Source: [source], as of [date]*
+
+### Forensic Verdict
+
+**Overall Assessment:** [Operationally Strengthening / Stable / Deteriorating]
+
+[2-3 sentence plain-language interpretation. Is the company getting healthier or sicker? Are the risks systemic or manageable? Does the competitive position support or undermine the financial trajectory?]
+
+**Key Risk to Monitor:** [Single most important risk indicator to track next quarter]
+**Key Strength to Preserve:** [Single most valuable strength indicator]
+
 ## Guardrails
 
 - Do not invent financial figures - delegate to 09_financial_data for real data

@@ -8,7 +8,7 @@
 
 ## Current Capabilities
 
-The system employs **9 specialized agents** organized into four categories:
+The system employs **11 specialized agents** organized into five categories:
 
 ### Strategic Reasoning Agents (01-04)
 | Agent | Primary Focus | Key Outputs |
@@ -21,16 +21,22 @@ The system employs **9 specialized agents** organized into four categories:
 ### Equity Research Agents (06-08)
 | Agent | Primary Focus | Key Outputs |
 |-------|---------------|-------------|
-| **06 Sector Screener** | Ticker identification, competitive landscape | List of relevant tickers, market cap tiers, sector positioning |
-| **07 Fundamental Analyst** | Valuation, financial statements, earnings quality | P/E, EV/EBITDA, DCF range, balance sheet risks |
+| **06 Sector Screener** | Ticker identification, competitive landscape; **Matrix mode:** multi-company quantitative comparison | List of relevant tickers, sector positioning; comparison tables, strategic rankings |
+| **07 Fundamental Analyst** | Valuation, financial statements, earnings quality; **Forensic mode:** statement-level forensics with risk/strength scoring | P/E, EV/EBITDA, DCF range, balance sheet risks; forensic scorecard, competitive benchmarking |
 | **08 Technical Analyst** | Price action, chart patterns, momentum | Trend direction, support/resistance, RSI/MACD signals |
+
+### Financial Intelligence Agents (10-11)
+| Agent | Primary Focus | Key Outputs |
+|-------|---------------|-------------|
+| **10 Equity Intel** | Rapid single-company institutional intelligence briefs | Business overview, core metrics, equity performance vs S&P 500, analyst sentiment, institutional positioning |
+| **11 Earnings Intel** | Post-earnings analysis with transcript parsing | Estimate vs actual, guidance assessment, segment contribution, management commentary, market reaction, earnings quality verdict |
 
 ### Data Layer Agent (09)
 | Agent | Primary Focus | Key Outputs |
 |-------|---------------|-------------|
-| **09 Financial Data** | Live market data retrieval, API integration | Price snapshots, financial statements, ratios, SEC filings |
+| **09 Financial Data** | Live market data retrieval, API integration, earnings transcripts | Price snapshots, financial statements, ratios, SEC filings, analyst ratings, institutional holdings, earnings data, transcripts |
 
-**Note:** 09_financial_data is a subagent that other agents (06, 07, 08, CoVe) delegate to for live data retrieval. It does not perform analysis - only data retrieval with source attribution.
+**Note:** 09_financial_data is a subagent that other agents (06, 07, 08, 10, 11, CoVe) delegate to for live data retrieval. It does not perform analysis - only data retrieval with source attribution.
 
 ### Meta Agents (05)
 | Agent | Primary Focus | Key Outputs |
@@ -125,6 +131,7 @@ USER INPUT (task.md + reference_materials/)
    PARALLEL PASS
    - Strategic Agents (01-04)
    - Screener (06) if equity task ──────┐
+   - Equity Intel (10) per ticker ──────┤
    - Epistemic (05)                     │
         │                               │
         ▼                               ▼
@@ -134,18 +141,23 @@ USER INPUT (task.md + reference_materials/)
         │                          - Financial statements
         ▼                          - SEC filings
    SEQUENTIAL DEEP-DIVE            - Analyst estimates
-   - Fundamental (07) ─────────────────┤
-   - Technical (08) ───────────────────┤
+   - Fundamental (07) ─────────────────┤  - Earnings transcripts
+   - Fundamental (07 forensic) ────────┤  - Institutional holdings
+   - Technical (08) ───────────────────┤  - Analyst ratings
+   - Earnings Intel (11) ─────────────┤  - Sector KPIs
+   - Sector Matrix (06 matrix) ───────┤
    - Inversion (02) + Epistemic (05)   │
         │                               │
         ▼                               │
    COVE VERIFICATION ──────────────────┘
    - Verifier delegates to 09 for data
+   - Management quote verification
         │
         ▼
    REPORTING AGENT
-   - 1-3 page structured memo
-   - Amazon 6-pager style
+   - Standard: 1-3 page structured memo
+   - Alt templates: equity brief, earnings,
+     sector matrix, forensic audit
         │
         ▼
    OUTPUTS
@@ -154,7 +166,23 @@ USER INPUT (task.md + reference_materials/)
    - Final memo with ranked recommendations
 ```
 
-**Data Layer Note:** 09_financial_data is not directly invoked by the Orchestrator. Instead, agents 06, 07, 08, and CoVe_verifier delegate to it when they need live market data. This ensures data accuracy, source attribution, and efficient API usage through caching.
+**Data Layer Note:** 09_financial_data is not directly invoked by the Orchestrator. Instead, agents 06, 07, 08, 10, 11, and CoVe_verifier delegate to it when they need live market data. This ensures data accuracy, source attribution, and efficient API usage through caching.
+
+## Objective Types
+
+The Orchestrator routes tasks based on objective type:
+
+| Objective | Description | Primary Agents |
+|-----------|-------------|----------------|
+| **INVEST** | Full investment analysis (standard pipeline) | 01-05 + conditional 06-11 |
+| **EQUITY_BRIEF** | Rapid single-company intelligence brief | 10 + 05 |
+| **EARNINGS_ANALYSIS** | Post-earnings quarter analysis | 11 + conditional 07, 08 |
+| **SECTOR_COMPARISON** | Multi-company quantitative comparison | 06 (matrix mode) + conditional 07, 02 |
+| **FORENSIC_AUDIT** | Deep financial statement forensics | 07 (forensic mode) + conditional 02, 05 |
+| **BUILD** | Build/create analysis | 01, 02, 05 |
+| **EXPLORE** | Exploratory research | 01, 05 |
+| **DECIDE** | Decision analysis | 01-05 |
+| **INVENT** | Innovation/invention analysis | 01, 02, 05 |
 
 ## Data and Storage Details
 
@@ -225,6 +253,10 @@ claude                # Start Claude Code
 - Web search integration (Phase 3) not yet implemented
 - Keep README in sync with the actual package layout after changes
 - Extended thinking mode uses significant tokens—monitor costs
+- **10_equity_intel** and **11_earnings_intel** charters defined; depend on expanded 09_financial_data capabilities (Phase 2/2.5)
+- **Earnings transcripts** (needed by 11_earnings_intel) are a Phase 2.5 data layer item; agent gracefully degrades to 8-K text
+- **Management quote verification** protocol added to CoVe but requires transcript availability
+- 07_fundamental forensic mode and 06_screener matrix mode are triggered by orchestrator `mode` parameter; runner implementation needed
 - Per-ticker iteration can multiply agent calls rapidly
 - 09_financial_data API calls should be cached within a run to avoid duplicate requests
 

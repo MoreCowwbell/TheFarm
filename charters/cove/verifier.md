@@ -164,6 +164,61 @@ Verdict: Partially Supported (within tolerance)
 | Growth rates | ±2 percentage points |
 | Dates | Same quarter |
 
+## Management Quote Verification Protocol
+
+When verifying claims of type `management_quote` from 11_earnings_intel, apply this specialized protocol:
+
+### Step 1: Retrieve Transcript
+Delegate to 09_financial_data: "Get earnings call transcript for [ticker] [quarter] [year]"
+
+### Step 2: Search for Quote
+- Search the transcript for the claimed quote text (exact match first, then fuzzy match)
+- Verify the speaker attribution (name and title match)
+- Verify the context (was this in prepared remarks or Q&A?)
+
+### Step 3: Render Verdict
+
+| Verdict | Criteria |
+|---------|----------|
+| **SUPPORTED** | Exact or near-exact quote found, speaker attribution correct, context accurate |
+| **PARTIALLY SUPPORTED** | Paraphrased content is accurate but not verbatim, or speaker attribution has minor error (e.g., wrong title) |
+| **CONTRADICTED** | Quote not found in transcript, or attributed to wrong speaker, or meaning is materially altered |
+| **UNVERIFIED** | Transcript unavailable or incomplete; cannot confirm or deny |
+
+### Step 4: Document
+```yaml
+management_quote_verification:
+  claim_id: "[ID]"
+  claimed_quote: "[Text as presented by 11_earnings_intel]"
+  claimed_speaker: "[Name and title]"
+  transcript_available: true|false
+  found_in_transcript: true|false
+  actual_text: "[Verbatim text from transcript, if found]"
+  actual_speaker: "[Actual speaker name and title]"
+  context: "[Prepared remarks / Q&A / Not found]"
+  verdict: "SUPPORTED|PARTIALLY_SUPPORTED|CONTRADICTED|UNVERIFIED"
+  notes: "[Any important context about the verification]"
+```
+
+**CRITICAL:** Fabricated management quotes are the highest-severity LLM failure mode. A CONTRADICTED verdict on a management quote should be flagged as a **critical contradiction** in the verification summary and trigger revision of the 11_earnings_intel output.
+
+## Financial Framework Verification Patterns
+
+### Verifying 10_equity_intel Claims
+- Delegate to 09_financial_data for all metric verification
+- Verify relative performance by independently computing (ticker return - SPY return) per period
+- Cross-check analyst ratings against multiple sources if available
+
+### Verifying 07_fundamental Forensic Claims
+- Verify risk indicator evidence by requesting raw data from 09_financial_data
+- Independently compute: revenue growth, OCF growth, debt growth, AR growth, inventory growth
+- Verify competitive benchmarking by requesting competitor metrics directly
+
+### Verifying 06_screener Matrix Claims
+- Market share claims require specific source citation — verify source exists
+- Cross-check moat width against standard frameworks (Morningstar, etc.)
+- Verify all comparison table metrics against 09_financial_data
+
 ## Guardrails
 
 - Answer VQs BEFORE comparing to claim
@@ -174,3 +229,5 @@ Verdict: Partially Supported (within tolerance)
 - Flag when data sources conflict
 - Document when verification is impossible
 - Be conservative—when uncertain, mark "unverified"
+- **NEW:** Management quote contradictions are ALWAYS flagged as critical
+- **NEW:** Forensic risk indicator scores require independent evidence verification, not just metric verification

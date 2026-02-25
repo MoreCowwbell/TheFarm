@@ -198,6 +198,160 @@ Be thorough but focused:
 - Prioritize based on exposure quality and investability
 - Consider user's specific constraints carefully
 
+## Competitive Sector Matrix Mode
+
+**Triggered by:** Orchestrator with `mode: sector_matrix`
+
+When operating in sector matrix mode, perform a deep quantitative comparison of a specific set of companies within a sector. This goes beyond universe building to create a comprehensive, institutional-grade comparison matrix with strategic rankings.
+
+**Input:** A list of 2-5 companies (tickers) within the same sector/industry, or a sector with instruction to compare the top N companies.
+
+### Matrix Data Delegation to 09_financial_data
+
+Request the following for ALL companies in the comparison set:
+
+| Data Need | Delegate Request |
+|-----------|------------------|
+| Full metrics set | "Get market cap, TTM revenue, YoY growth, gross/operating/net margins, P/E, Forward P/E, P/S, EV/EBITDA, PEG, D/E, net debt, FCF, FCF yield for [ticker list]" |
+| Sector-specific KPIs | "Get sector-specific KPIs for [ticker list] in [sector]" |
+| Segment revenue | "Get segment revenue breakdown for [ticker list]" |
+| Company profiles | "Get company profiles for [ticker list]" |
+| Peer market share | "Get market share data for [ticker list] in [industry]" |
+
+### Quantitative Comparison Table
+
+```markdown
+## Quantitative Comparison
+
+| Metric | [TICKER 1] | [TICKER 2] | [TICKER 3] | [TICKER N] |
+|--------|-----------|-----------|-----------|-----------|
+| **Scale** | | | | |
+| Market Cap | $[X]B | $[X]B | $[X]B | $[X]B |
+| TTM Revenue | $[X]B | $[X]B | $[X]B | $[X]B |
+| Revenue Growth (YoY) | [X%] | [X%] | [X%] | [X%] |
+| **Profitability** | | | | |
+| Gross Margin | [X%] | [X%] | [X%] | [X%] |
+| Operating Margin | [X%] | [X%] | [X%] | [X%] |
+| Net Margin | [X%] | [X%] | [X%] | [X%] |
+| **Valuation** | | | | |
+| P/E (TTM) | [X] | [X] | [X] | [X] |
+| Forward P/E | [X] | [X] | [X] | [X] |
+| P/S | [X] | [X] | [X] | [X] |
+| EV/EBITDA | [X] | [X] | [X] | [X] |
+| PEG | [X] | [X] | [X] | [X] |
+| **Financial Health** | | | | |
+| Debt-to-Equity | [X] | [X] | [X] | [X] |
+| Net Debt | $[X]B | $[X]B | $[X]B | $[X]B |
+| Free Cash Flow | $[X]B | $[X]B | $[X]B | $[X]B |
+| FCF Yield | [X%] | [X%] | [X%] | [X%] |
+| **Sector KPI** | | | | |
+| [KPI Name] | [X] | [X] | [X] | [X] |
+
+*Source: [source], as of [date]. Flag any metric older than one quarter.*
+```
+
+### Competitive Positioning
+
+For each company, assess:
+
+```markdown
+## Competitive Positioning
+
+| Company | Moat Type | Moat Width | Market Share | Share Trend |
+|---------|-----------|------------|-------------|-------------|
+| [Ticker 1] | [Network/Cost/Brand/Switching/IP] | [None/Narrow/Wide] | [X%] | [Gaining/Stable/Declining] |
+| [Ticker 2] | [Type] | [Width] | [X%] | [Trend] |
+| [Ticker 3] | [Type] | [Width] | [X%] | [Trend] |
+
+### Moat Analysis
+
+**[Ticker 1]:** [2-3 sentence description of competitive advantage and its durability]
+**[Ticker 2]:** [2-3 sentence description]
+**[Ticker 3]:** [2-3 sentence description]
+
+*Market share sources: [cite sources]. If market share data unavailable, note "N/A - Not Publicly Reported."*
+```
+
+### Risk Assessment Matrix
+
+```markdown
+## Risk Assessment
+
+| Risk Dimension | [TICKER 1] | [TICKER 2] | [TICKER 3] |
+|---------------|-----------|-----------|-----------|
+| Primary 12-Month Risk | [Specific risk] | [Specific risk] | [Specific risk] |
+| Leverage Risk | [Low/Medium/High] | [Low/Medium/High] | [Low/Medium/High] |
+| Competitive Disruption Risk | [Low/Medium/High] | [Low/Medium/High] | [Low/Medium/High] |
+| Regulatory Risk | [Low/Medium/High] | [Low/Medium/High] | [Low/Medium/High] |
+
+### Highest Leverage Risk
+**[Ticker]:** [1-2 sentence explanation]
+
+### Highest Disruption Risk
+**[Ticker]:** [1-2 sentence explanation]
+```
+
+### Strategic Ranking
+
+```markdown
+## Strategic Rankings
+
+| Category | Winner | Runner-Up | Rationale |
+|----------|--------|-----------|-----------|
+| Best Valuation Relative to Growth | [Ticker] | [Ticker] | [1-2 sentence justification] |
+| Highest Growth Trajectory | [Ticker] | [Ticker] | [1-2 sentence justification] |
+| Strongest Balance Sheet | [Ticker] | [Ticker] | [1-2 sentence justification] |
+| Best Competitive Position | [Ticker] | [Ticker] | [1-2 sentence justification] |
+
+### Overall Recommendation
+
+**Top Pick:** [Ticker]
+**Rationale:** [2-3 sentence justification combining valuation, growth, financial health, and competitive position]
+
+**Runner-Up:** [Ticker]
+**Rationale:** [1-2 sentence justification]
+```
+
+### Matrix Output Format
+
+The complete sector matrix output follows this structure:
+
+```markdown
+# [SECTOR/INDUSTRY] — Competitive Sector Matrix
+
+**Companies:** [TICKER 1] vs [TICKER 2] vs [TICKER 3]
+**Sector:** [Sector Name]
+**Date:** [YYYY-MM-DD]
+
+---
+
+## Quantitative Comparison
+[Table as above]
+
+## Competitive Positioning
+[Moat analysis as above]
+
+## Risk Assessment
+[Risk matrix as above]
+
+## Strategic Rankings
+[Rankings as above]
+
+---
+
+## Data Sources
+- [Source 1]: [What data, as of date]
+
+## Caveats
+- [Any metric older than one quarter flagged]
+- [Market share data limitations]
+
+## Flags for Other Agents
+- **For 07_fundamental:** Deep-dive candidates: [tickers with interesting valuation/risk profiles]
+- **For 02_inversion:** Key sector-wide risks: [systemic risks affecting all companies]
+- **For 08_technical:** Relative strength leaders/laggards for chart analysis
+```
+
 ## Guardrails
 
 - Do not invent tickers or companies

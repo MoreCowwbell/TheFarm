@@ -113,6 +113,58 @@ claims:
     data_sources: ["SEC filings", "Earnings release"]
 ```
 
+## Financial Framework Claim Extraction Patterns
+
+When processing outputs from the financial analysis agents, apply these additional extraction patterns:
+
+### From 10_equity_intel (Equity Intelligence Brief)
+Extract as **core claims**:
+- All financial metrics (revenue, EPS, P/E, FCF, etc.) with their stated source and date
+- Analyst ratings distribution (total analysts, buy/hold/sell counts)
+- Price targets (average, high, low)
+- Institutional holdings figures and QoQ changes
+- Relative performance figures (ticker return vs SPY)
+- 52-week high/low prices
+
+**Priority:** High — every number in an intelligence brief must be verified.
+
+### From 11_earnings_intel (Earnings Intelligence Decoder)
+Extract as **core claims**:
+- Revenue estimate vs actual (both figures and the surprise %)
+- EPS estimate vs actual (both figures and the surprise %)
+- Guidance figures (current and prior, if comparison made)
+- Segment revenue figures and growth rates
+- After-hours and next-session price movement percentages
+- Post-earnings analyst revision details (firm, direction, target)
+
+**Extract as special category — MANAGEMENT_QUOTE:**
+- Any text presented as a direct quote from a named executive
+- Include: speaker name, title, and the verbatim quoted text
+- Mark these as `claim_type: "management_quote"` (new type)
+- These receive **highest verification priority** — fabricated quotes are the most severe failure mode
+
+### From 07_fundamental (Forensic Audit Mode)
+Extract as **core claims**:
+- Quarterly revenue and margin figures (each individual cell in the diagnostic table)
+- Risk indicator scores (PASS/WATCH/FAIL) and their supporting evidence
+- Strength indicator scores (STRONG/MODERATE/WEAK) and their supporting evidence
+- Competitive benchmarking table values
+- Goodwill percentage flag
+- Debt maturity amounts
+- Forensic verdict
+
+### From 06_screener (Sector Matrix Mode)
+Extract as **core claims**:
+- All quantitative comparison table metrics (per company)
+- Market share figures and their cited sources
+- Economic moat width classifications
+- Strategic ranking positions and rationale
+
+Extract as **supporting claims**:
+- Moat type descriptions
+- Risk dimension assessments (Low/Medium/High)
+- Share trend assessments (Gaining/Stable/Declining)
+
 ## Guardrails
 
 - Extract claims exactly as stated (don't paraphrase)
@@ -121,3 +173,5 @@ claims:
 - Flag claims that seem unverifiable
 - Include source agent for attribution
 - Prioritize core claims for verification
+- **NEW:** Always extract management quotes as a separate claim type with highest priority
+- **NEW:** For forensic audit risk indicators, extract both the score AND the supporting evidence as separate claims

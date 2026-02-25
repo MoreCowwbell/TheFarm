@@ -199,6 +199,164 @@ Your report MUST follow this structure:
 *Report version: 1.0*
 ```
 
+## Alternative Report Templates
+
+When the objective type is one of the new financial analysis types, use the corresponding template below instead of the standard investment memo format.
+
+### EQUITY_BRIEF Report Template
+
+For EQUITY_BRIEF objectives, produce a **data-dense single-page brief** (not narrative memo format). The 10_equity_intel agent's output IS the report — the Reporting agent's job is quality assurance, not rewriting.
+
+```markdown
+# [TICKER] — Equity Intelligence Brief
+
+[Pass through the 10_equity_intel output with these additions:]
+
+## Report Quality Check
+- [ ] All metrics have source attribution
+- [ ] Stale data (>30 days) flagged
+- [ ] Unavailable data marked explicitly
+- [ ] Relative performance computed correctly (ticker - SPY)
+- [ ] No valuation opinions or recommendations included
+
+## Disclaimer
+This brief presents factual data for informational purposes. It does not constitute investment advice.
+```
+
+### EARNINGS_ANALYSIS Report Template
+
+For EARNINGS_ANALYSIS objectives, **lead with the verdict**, then present supporting analysis.
+
+```markdown
+# [TICKER] — Earnings Analysis: [Quarter]
+
+## Verdict
+**[Structural Beat / Cosmetic Beat / Clean Miss / Structural Miss]**
+**Most Consequential Number:** [metric]: [value] — [why it matters]
+
+## Results Summary
+| Metric | Estimate | Actual | Surprise |
+|--------|----------|--------|----------|
+| Revenue | $[X] | $[Y] | [Z%] [beat/miss] |
+| EPS | $[X] | $[Y] | [Z%] [beat/miss] |
+
+## Guidance Assessment
+[Raised/Lowered/Reaffirmed] — [1-2 sentence summary of guidance change and implications]
+
+## Key Management Quote
+> "[Verbatim quote]" — [Speaker], [Title]
+> *Source: Earnings call transcript, [date]*
+
+[If transcript unavailable: "Transcript not available. Commentary limited to earnings release."]
+
+## What to Watch Next Quarter
+**Key Metric:** [metric] at [current value] — watch for [threshold/direction]
+
+## Full Analysis
+[Append complete 11_earnings_intel output as appendix]
+```
+
+### SECTOR_COMPARISON Report Template
+
+For SECTOR_COMPARISON objectives, **lead with strategic ranking**, then present comparison.
+
+```markdown
+# [SECTOR] — Competitive Sector Matrix
+
+## Strategic Ranking
+| Rank | Company | Score Rationale |
+|------|---------|----------------|
+| 1 | [Ticker] | [1-sentence rationale] |
+| 2 | [Ticker] | [1-sentence rationale] |
+| N | [Ticker] | [1-sentence rationale] |
+
+## Quantitative Comparison
+[Full comparison table from 06_screener matrix mode output]
+
+## Moat Analysis
+[Competitive positioning from 06_screener matrix mode output]
+
+## Key Findings
+1. **Best Value:** [Ticker] — [why]
+2. **Highest Growth:** [Ticker] — [why]
+3. **Strongest Balance Sheet:** [Ticker] — [why]
+4. **Biggest Risk:** [Ticker] — [why]
+
+## Full Analysis
+[Append complete 06_screener matrix output as appendix]
+```
+
+### FORENSIC_AUDIT Report Template
+
+For FORENSIC_AUDIT objectives, **lead with the risk/strength scorecard**.
+
+```markdown
+# [TICKER] — Financial Statement Forensic Audit
+
+## Forensic Scorecard
+
+### Risk Indicators
+| # | Indicator | Score |
+|---|-----------|-------|
+| 1 | Revenue vs Cash Flow Divergence | [PASS/WATCH/FAIL] |
+| 2 | Debt vs Revenue Growth | [PASS/WATCH/FAIL] |
+| 3 | AR vs Revenue Growth | [PASS/WATCH/FAIL] |
+| 4 | Inventory Accumulation | [PASS/WATCH/FAIL] |
+| 5 | Repeated One-Time Adjustments | [PASS/WATCH/FAIL] |
+| 6 | Auditor Changes/Modifications | [PASS/WATCH/FAIL] |
+
+**Risk Summary:** [X] PASS, [Y] WATCH, [Z] FAIL
+
+### Strength Indicators
+| # | Indicator | Score |
+|---|-----------|-------|
+| 1 | Sequential Margin Expansion | [STRONG/MODERATE/WEAK] |
+| 2 | FCF vs Net Income Growth | [STRONG/MODERATE/WEAK] |
+| 3 | Deleveraging Trend | [STRONG/MODERATE/WEAK] |
+| 4 | GAAP-Adjusted Alignment | [STRONG/MODERATE/WEAK] |
+
+**Strength Summary:** [X] STRONG, [Y] MODERATE, [Z] WEAK
+
+## Verdict
+**[Operationally Strengthening / Stable / Deteriorating]**
+[2-3 sentence plain-language interpretation]
+
+## Competitive Benchmarking
+[Margin/ratio table vs top 3 competitors from 07_fundamental forensic output]
+
+## Full Analysis
+[Append complete 07_fundamental forensic output as appendix]
+```
+
+### Template Quality Checklists
+
+**EQUITY_BRIEF Checklist:**
+- [ ] All 5 sections present (Business, Metrics, Performance, Analyst, Institutional)
+- [ ] Every metric has source + date
+- [ ] Stale data flagged
+- [ ] No opinions or recommendations
+
+**EARNINGS_ANALYSIS Checklist:**
+- [ ] Verdict leads the report
+- [ ] Beat/miss quantified in both $ and %
+- [ ] GAAP vs non-GAAP distinguished
+- [ ] Management quotes are transcript-verified (or unavailability noted)
+- [ ] Guidance comparison to prior guidance AND consensus
+
+**SECTOR_COMPARISON Checklist:**
+- [ ] All companies have identical metrics for fair comparison
+- [ ] Market share sources cited (or N/A noted)
+- [ ] Moat classifications justified
+- [ ] Strategic ranking includes rationale
+- [ ] Sector-specific KPI included
+
+**FORENSIC_AUDIT Checklist:**
+- [ ] All 6 risk indicators scored with evidence
+- [ ] All 4 strength indicators scored with evidence
+- [ ] Competitive benchmarking table complete
+- [ ] Verdict is plain-language accessible
+- [ ] Quarterly margin trajectory quantified
+
 ## Quality Checklist (Self-Verify)
 
 Before producing final output, verify:

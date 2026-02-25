@@ -29,6 +29,64 @@ Format:
 ---
 ## Start of Changelog below:
 
+## 2026-02-25 — Financial Analysis Agent Frameworks (Claude Code)
+- [x] Created `charters/agents/10_equity_intel.md` — Equity Intelligence Brief agent (Framework 1)
+  - Rapid single-company institutional intelligence briefs
+  - 5 sections: Business Foundation, Core Metrics, Performance Profile, Analyst Sentiment, Institutional Positioning
+  - All data delegated to 09_financial_data; no independent retrieval
+  - Model: Sonnet 4, Standard mode
+- [x] Created `charters/agents/11_earnings_intel.md` — Earnings Intelligence Decoder agent (Framework 3)
+  - Post-earnings analysis with transcript parsing and management commentary extraction
+  - 6 sections: Reported Results, Forward Outlook, Segment Performance, Management Commentary, Market Reaction, Investment Verdict
+  - Graceful degradation when transcripts unavailable (falls back to 8-K)
+  - Critical guardrail: never fabricate management quotes
+  - Model: Opus 4.5, Extended thinking
+- [x] Enhanced `charters/agents/07_fundamental.md` — Added Forensic Audit Mode (Framework 2)
+  - Income Statement Diagnostics (4-quarter table with margin trajectory)
+  - Balance Sheet Deep-Dive (quick ratio, goodwill flag >30%, debt maturity timeline)
+  - Cash Flow Validation (FCF margin, capital allocation breakdown)
+  - 6 Risk Indicators scored PASS/WATCH/FAIL
+  - 4 Strength Indicators scored STRONG/MODERATE/WEAK
+  - Competitive Benchmarking table vs top 3 competitors
+  - Forensic Verdict: plain-language operational assessment
+- [x] Enhanced `charters/agents/06_screener.md` — Added Competitive Sector Matrix Mode (Framework 4)
+  - Quantitative Comparison Table (18+ metrics across all companies)
+  - Competitive Positioning (moat type, width, market share, share trend)
+  - Risk Assessment Matrix (12-month risk, leverage risk, disruption risk)
+  - Strategic Ranking (best valuation, growth, balance sheet, overall pick)
+- [x] Expanded `charters/agents/09_financial_data.md` — ~15 new data capabilities
+  - Tier 2: analyst ratings, price targets, institutional holdings QoQ, relative performance, quarterly financials (8Q), debt maturity, goodwill, AR/inventory detail, earnings estimates/surprises/release/revisions, sector KPIs
+  - Tier 3: earnings call transcripts with speaker attribution
+  - New API endpoints and agentic routing patterns for all new data types
+  - Updated roadmap with Phase 2.5 for financial frameworks data layer
+- [x] Updated `charters/orchestrator.md` — 4 new objective types
+  - EQUITY_BRIEF, EARNINGS_ANALYSIS, SECTOR_COMPARISON, FORENSIC_AUDIT
+  - Enhanced INVEST objective with conditional 10/11 inclusion
+  - Updated delegation table and CoVe trigger rules
+- [x] Updated `charters/reporting.md` — 4 alternative report templates
+  - EQUITY_BRIEF: data-dense single-page brief
+  - EARNINGS_ANALYSIS: verdict-first with results table
+  - SECTOR_COMPARISON: strategic ranking with comparison tables
+  - FORENSIC_AUDIT: risk/strength scorecard with quarterly diagnostics
+  - Template-specific quality checklists
+- [x] Updated `charters/cove/generator.md` — Financial framework claim extraction patterns
+  - Framework-specific extraction rules for 10, 11, 07(forensic), 06(matrix)
+  - New claim type: MANAGEMENT_QUOTE (highest verification priority)
+- [x] Updated `charters/cove/verifier.md` — Management quote verification protocol
+  - SUPPORTED/PARTIALLY_SUPPORTED/CONTRADICTED/UNVERIFIED verdicts for quotes
+  - Transcript-based verification with speaker attribution check
+  - Contradicted management quotes flagged as critical contradictions
+- [x] Updated `charters/intake_conversation.md` — New objective types and field priorities
+  - Added 4 new objective types to task file format
+  - Field priority table for EQUITY_BRIEF, EARNINGS_ANALYSIS, SECTOR_COMPARISON, FORENSIC_AUDIT
+  - Objective detection signals for quick routing
+- [x] Updated `AGENT_CONTEXT.md` — Architecture updates for 11-agent system
+  - Added Financial Intelligence Agents (10-11) category
+  - Updated execution flow diagram with new agents
+  - Added Objective Types reference table
+  - Updated Known Gaps section
+- [x] Updated `AGENT_INSTRUCTIONS.md` — Model config for agents 10-11
+
 ## 2026-02-05 — Session Summary (Claude Code) - Part 3
 - [x] Updated `Plan_FINAL.md` to version 2.1:
   - Updated Section 1.3 Core Agents: Added 09_financial_data and Intake System categories (now 9 agents)

@@ -35,6 +35,10 @@ Other agents delegate to you when they need data:
 | **08_technical** | "Get NVDA daily prices for past 2 years" | OHLCV price history |
 | **CoVe_verifier** | "Get MSFT 10-K filing revenue figure for FY2024" | Specific data point with filing source |
 | **04_incentives** | "Get insider transactions for NVDA past 6 months" | Insider trading activity |
+| **10_equity_intel** | "Get full equity intelligence profile for AAPL" | Price, metrics, analyst ratings, institutional holdings, performance |
+| **11_earnings_intel** | "Get earnings data and transcript for MSFT Q2 FY2025" | Estimates vs actuals, earnings transcript, guidance, post-earnings price |
+| **06_screener (matrix)** | "Get quantitative comparison data for NVDA, AMD, INTC, AVGO" | Full metrics set for multi-company comparison table |
+| **07_fundamental (forensic)** | "Get 8 quarters of statements and AR/inventory detail for TSLA" | Quarterly granularity, balance sheet forensic detail |
 
 ## Data Capabilities
 
@@ -57,10 +61,23 @@ Other agents delegate to you when they need data:
 | **Company Profile** | Description, sector, industry, employees, HQ | Context for analysis |
 | **Peer List** | Companies in same sector/industry | Comparable company analysis |
 | **Insider Transactions** | Buys, sells, amounts, dates | Incentive analysis |
-| **Institutional Holdings** | Top holders, ownership % | Ownership structure |
+| **Institutional Holdings** | Top holders, ownership %, QoQ position changes | Ownership structure, institutional flow |
 | **Segment Revenue** | Revenue by business segment | Sum-of-parts valuation |
+| **Analyst Ratings Distribution** | Total analysts, buy/hold/sell counts, consensus rating | Analyst sentiment (for 10_equity_intel) |
+| **Price Target Detail** | Mean/median/high/low targets, most recent change (firm, date, direction) | Price target landscape (for 10_equity_intel) |
+| **Relative Performance** | Price change vs SPY for 1M, 3M, 6M, 1Y, YTD periods | Benchmark-relative performance (for 10_equity_intel) |
+| **Quarterly Financials (8Q)** | Income/balance/cash flow at quarterly granularity, 8 quarters | Forensic audit quarterly trajectory (for 07_fundamental) |
+| **Debt Maturity Schedule** | Debt instruments with maturity dates, amounts, interest rates | Balance sheet risk timeline (for 07_fundamental) |
+| **Goodwill & Intangibles** | Goodwill, other intangibles, % of total assets | Balance sheet quality flag (for 07_fundamental) |
+| **Accounts Receivable Detail** | AR balance, YoY change, days sales outstanding | Forensic risk indicator (for 07_fundamental) |
+| **Inventory Detail** | Inventory balance, YoY change, inventory turnover | Forensic risk indicator (for 07_fundamental) |
+| **Earnings Estimates** | Consensus EPS and revenue by quarter (current + 3 forward) | Estimate vs actual comparison (for 11_earnings_intel) |
+| **Earnings Surprises** | Historical beat/miss for EPS and revenue, 8 quarters | Track record context (for 11_earnings_intel) |
+| **Earnings Release Data** | Reported EPS/revenue vs estimate for specific quarter, GAAP vs non-GAAP | Post-earnings analysis (for 11_earnings_intel) |
+| **Analyst Estimate Revisions** | Recent estimate changes with firm name, direction, magnitude | Post-earnings reaction (for 11_earnings_intel) |
+| **Sector-Specific KPIs** | Subscribers, ARPU, GMV, bookings, DAU/MAU, units shipped (varies by sector) | Sector matrix comparison (for 06_screener) |
 
-### Tier 3: SEC Filings
+### Tier 3: SEC Filings & Transcripts
 
 | Filing Type | Key Data | Use Case |
 |-------------|----------|----------|
@@ -68,6 +85,14 @@ Other agents delegate to you when they need data:
 | **10-Q** | Quarterly financials, interim updates | Quarterly tracking |
 | **8-K** | Material events, earnings releases | Event-driven analysis |
 | **DEF 14A** | Executive compensation, governance | Incentive analysis |
+| **Earnings Call Transcripts** | Full transcript with speaker attribution (CEO, CFO, analysts), Q&A section | Management commentary analysis (for 11_earnings_intel) |
+
+**Earnings Transcript Notes:**
+- Transcripts must include speaker identification (name and title)
+- Q&A section should be separated from prepared remarks
+- If transcript unavailable, fall back to 8-K earnings release text and flag limitation
+- Source: FMP earnings transcript endpoint or third-party transcript provider
+- Freshness: Typically available 24-48 hours after earnings call
 
 ## API Integration (Planned)
 
@@ -75,6 +100,7 @@ Other agents delegate to you when they need data:
 
 ```yaml
 endpoints:
+  # Tier 1: Core
   price_snapshot: /quote/{symbol}
   historical_prices: /historical-price-full/{symbol}
   income_statement: /income-statement/{symbol}
@@ -87,6 +113,22 @@ endpoints:
   peers: /stock_peers?symbol={symbol}
   insider_trading: /insider-trading?symbol={symbol}
   sec_filings: /sec_filings/{symbol}
+
+  # Tier 2: Extended (new for financial frameworks)
+  analyst_ratings: /grade/{symbol}
+  price_target_summary: /price-target-summary?symbol={symbol}
+  price_target_latest: /price-target?symbol={symbol}
+  institutional_holders: /institutional-holder/{symbol}
+  quarterly_income: /income-statement/{symbol}?period=quarter&limit=8
+  quarterly_balance: /balance-sheet-statement/{symbol}?period=quarter&limit=8
+  quarterly_cashflow: /cash-flow-statement/{symbol}?period=quarter&limit=8
+  earnings_surprises: /earnings-surprises/{symbol}
+  earnings_calendar: /earning_calendar?symbol={symbol}
+  revenue_segments: /revenue-product-segmentation?symbol={symbol}
+
+  # Tier 3: Transcripts & Filings
+  earnings_transcript: /earning_call_transcript/{symbol}?quarter={quarter}&year={year}
+  earnings_transcript_list: /earning_call_transcript?symbol={symbol}
 ```
 
 ### Fallback: SEC EDGAR Direct
@@ -250,6 +292,20 @@ When you receive a natural language request, route to the appropriate data retri
 | "peers", "competitors", "sector" | Peer List |
 | "insider", "executive transactions" | Insider Trading |
 | "history", "price history", "past prices" | Historical Prices |
+| "analyst ratings", "buy/hold/sell", "analyst coverage" | Analyst Ratings Distribution |
+| "price targets", "target price", "consensus target" | Price Target Detail |
+| "performance vs S&P", "relative performance", "benchmark" | Relative Performance |
+| "quarterly financials", "8 quarters", "quarterly margins" | Quarterly Financials (8Q) |
+| "debt maturity", "debt schedule", "when does debt mature" | Debt Maturity Schedule |
+| "goodwill", "intangibles", "intangible assets" | Goodwill & Intangibles |
+| "accounts receivable", "AR growth", "DSO" | Accounts Receivable Detail |
+| "inventory levels", "inventory turnover" | Inventory Detail |
+| "earnings estimates", "consensus EPS", "expected revenue" | Earnings Estimates |
+| "earnings surprise", "beat/miss history" | Earnings Surprises |
+| "reported vs estimate", "actual EPS", "earnings results" | Earnings Release Data |
+| "estimate revisions", "analyst upgrades", "downgrades" | Analyst Estimate Revisions |
+| "subscribers", "ARPU", "GMV", "bookings", "DAU", "units" | Sector-Specific KPIs |
+| "earnings transcript", "earnings call", "management comments" | Earnings Call Transcript |
 
 ## Integration with Other Agents
 
@@ -269,7 +325,11 @@ When returning data to requesting agents, always include:
 ## Flags for Other Agents
 
 - **For 07_fundamental:** Data retrieved includes [X years] of history; [any gaps noted]
+- **For 07_fundamental (forensic):** Quarterly data covers [X quarters]; AR/inventory detail [available/unavailable]; goodwill at [X%] of assets
 - **For 08_technical:** Price history available from [start_date] to [end_date]; [frequency]
+- **For 10_equity_intel:** Analyst coverage: [X analysts]; institutional holdings freshness: [date]; relative performance data [available/computed]
+- **For 11_earnings_intel:** Transcript [available/unavailable] for [quarter]; earnings estimates source: [API]; post-earnings price data through [date]
+- **For 06_screener (matrix):** Sector KPIs [available/unavailable] for [tickers]; metrics freshness varies: [notes]
 - **For CoVe_verifier:** Source is [API/filing]; verification against [alternative source] recommended for [specific claims]
 - **For Orchestrator:** API rate limit at [X%]; [any data unavailability noted]
 ```
@@ -313,10 +373,27 @@ When returning data to requesting agents, always include:
 - [ ] Insider trading data
 - [ ] Peer/competitor identification
 - [ ] Segment revenue breakdown
+- [ ] Analyst ratings distribution (buy/hold/sell)
+- [ ] Price target detail (mean/median/high/low, latest change)
+- [ ] Institutional holdings with QoQ changes
+- [ ] Relative performance vs SPY benchmark
+
+### Phase 2.5: Financial Frameworks Data Layer
+- [ ] Quarterly financials (8 quarters) for forensic audit
+- [ ] Debt maturity schedule
+- [ ] Goodwill & intangibles breakdown
+- [ ] Accounts receivable and inventory detail
+- [ ] Earnings estimates (consensus by quarter)
+- [ ] Earnings surprises (historical beat/miss)
+- [ ] Earnings release data (reported vs estimate)
+- [ ] Analyst estimate revisions (post-earnings)
+- [ ] Sector-specific KPI retrieval
+- [ ] Earnings call transcript retrieval and parsing
 
 ### Phase 3: Advanced Features
 - [ ] Real-time streaming quotes
 - [ ] Options data
 - [ ] Crypto data
 - [ ] News aggregation with sentiment
-- [ ] Earnings call transcripts
+- [ ] Earnings call transcript summarization
+- [ ] Conference call audio processing

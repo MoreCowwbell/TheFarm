@@ -107,6 +107,8 @@ db.execute("INSERT INTO runs (run_id, task_path) VALUES (?, ?)", [run_id, task_p
 | 07 Fundamental | Opus 4.5 | Extended | Complex valuation reasoning |
 | 08 Technical | Sonnet 4 | Standard | Rule-based pattern recognition |
 | 09 Financial Data | Sonnet 4 | Standard | Structured data retrieval, agentic routing |
+| 10 Equity Intel | Sonnet 4 | Standard | Structured data assembly and formatting |
+| 11 Earnings Intel | Opus 4.5 | Extended | Complex temporal reasoning, transcript analysis, tone evaluation |
 | Reporting | Sonnet 4 | Standard | Narrative synthesis from existing content |
 
 ## PATH and Directories
